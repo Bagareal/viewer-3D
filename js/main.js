@@ -3,6 +3,7 @@ import { THREE, view, renderer, ctr, sphere, place, resize, setFocal, setRatio, 
 import { model, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, spin, resetSpin, pick, relabelParts } from './model.js';
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
+import { relabelCube } from './gizmo.js';
 
 const $ = id => document.getElementById(id), side = $('side');
 let fileName = '', expanded = false, longSide = 3000, axis = 'free';
@@ -192,7 +193,7 @@ function labels() {
   $('parts').dataset.empty = t('partsEmpty');
   $('help').innerHTML = t('help');
   $('savemsg').textContent = t('saveHint'); $('viewMsg').textContent = '';
-  relabelParts(); drawViews();
+  relabelParts(); drawViews(); relabelCube();
 }
 
 // ---------- start

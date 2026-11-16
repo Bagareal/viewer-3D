@@ -12,6 +12,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
 #stage.clear{background:repeating-conic-gradient(#d9d9d6 0 25%,#f1f1ef 0 50%) 0 0/24px 24px}
 #stage canvas{display:block;width:100%;height:100%;touch-action:none}
 #frame{position:absolute;pointer-events:none;border:1px solid rgba(0,0,0,.6);box-shadow:0 0 0 9999px rgba(24,26,29,.42)}
+#stage #gizmo{position:absolute;top:8px;right:8px;width:150px;height:150px;z-index:1;touch-action:none}
 #nav{position:absolute;left:12px;bottom:10px;margin:0;padding:5px 10px;border-radius:6px;background:rgba(36,39,43,.78);color:#e3e4e2;font-size:12px;pointer-events:none;max-width:calc(100% - 24px)}
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(233,233,231,.9);z-index:2}
 #drop{background:var(--stage)}
@@ -132,4 +133,5 @@ aside footer{flex:none;padding:12px 16px 14px;border-top:1px solid var(--line);b
   #stage{flex:none;height:44%}
   aside{width:auto;flex:1;border-left:none}
   #nav{display:none}
+  #stage #gizmo{width:110px;height:110px}
 }

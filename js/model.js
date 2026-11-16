@@ -1,5 +1,5 @@
 // The loaded model: materials, parts list, exploded view, orientation and picking.
-import { THREE, view, holder, floor, sphere, place, invalidate, cam, renderer } from './viewer.js';
+import { THREE, AXES, view, holder, floor, sphere, place, invalidate, cam, renderer } from './viewer.js';
 import { t } from './i18n.js';
 
 const $ = id => document.getElementById(id);
@@ -143,17 +143,20 @@ export function turn90(ax) {
   if (!model) return;
   expBase.forEach((p, m) => m.position.copy(p));
   model.quaternion.copy(homeQ); model.position.copy(homeP);
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(+(ax === 'x'), +(ax === 'y'), +(ax === 'z')), Math.PI / 2);
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), Math.PI / 2);
   model.position.applyQuaternion(q); model.quaternion.premultiply(q);
   normalize(); saveHome(); place(view.dir); applyExplode();
 }
 // Free turn around one axis through the middle of the product (used while dragging).
 export function spin(ax, angle) {
   if (!model) return;
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(+(ax === 'x'), +(ax === 'y'), +(ax === 'z')), angle);
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), angle);
   const C = holder.worldToLocal(sphere.center.clone());
   model.position.sub(C).applyQuaternion(q).add(C); model.quaternion.premultiply(q); invalidate();
 }
+// Turn applied on top of the product's straightened position (shown by the orientation cube).
+const _sq = new THREE.Quaternion(), _hq = new THREE.Quaternion();
+export const spinQuat = () => model && homeQ ? _sq.copy(model.quaternion).multiply(_hq.copy(homeQ).invert()) : _sq.identity();
 export function resetSpin() { if (model) { model.quaternion.copy(homeQ); model.position.copy(homeP); invalidate(); } }
 
 // ---------- picking: click a part on the model to find it in the list

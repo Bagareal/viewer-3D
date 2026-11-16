@@ -5,6 +5,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export { THREE };
 export const stage = document.getElementById('stage');
+// CAD axes (Z up, as in CAD programs) expressed in the scene, where up is +Y and the front faces +Z.
+export const AXES = { x: [1, 0, 0], y: [0, 0, -1], z: [0, 1, 0] };
+export const afterDraw = []; // drawn after the main view, never in exported images
 const frameEl = document.getElementById('frame');
 
 // Everything that defines "the picture": saved with views, read by the export.
@@ -185,4 +188,4 @@ export async function snapshot(longSide) {
 
 addEventListener('resize', resize);
 new ResizeObserver(resize).observe(stage);
-(function loop() { requestAnimationFrame(loop); ctr.update(); if (dirty) { dirty = false; draw(); } })();
+(function loop() { requestAnimationFrame(loop); ctr.update(); if (dirty) { dirty = false; draw(); afterDraw.forEach(f => f()); } })();

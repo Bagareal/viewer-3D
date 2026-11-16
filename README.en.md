@@ -18,7 +18,8 @@ STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 1. **Load** a file (button or drag and drop onto the window).
 2. **Move around**: hold left click to orbit, scroll to zoom, hold right click (or the wheel button) to pan. Click a part on the model to find it in the list.
 3. **Frame**: quick views (front, 3/4, side, high angle…), focal lengths from 24 to 105 mm, and an **image format** (free, 1:1, 4:5, 3:2, 16:9, 9:16) shown as a frame on screen. **Saved views** keep a framing so you can apply it to other products; they can be exported and imported as a file.
-4. **Position the product**: quarter turns to straighten a product that comes in lying down, or drag to turn it on a single axis (X, Y or Z, with Reset).
+4. **Position the product**: quarter turns to straighten a product that comes in lying down, or drag to turn it on a single axis (X, Y or Z, with Reset). Axes follow the CAD convention: Z is vertical.
+   The **orientation cube** at the top right turns with the view: click a face, an edge or a corner to look at the product from that side.
 5. **Pick the parts**: the **Parts** list shows the file's tree, with a search box. Untick to hide a part, **Solo** to isolate it, **Show all** to go back; hovering a name lights the part up in orange.
 6. **Exploded view**: the slider moves parts away from the product's centre. **All parts** explodes everything, **Chosen parts** only the parts or groups marked ✦ in the list.
 7. **Choose the look**: shaded **Render** (neutral grey or the file's colours), **Depth** map (white = near) or **Lines** drawing. Grey, white or transparent background.

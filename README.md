@@ -18,7 +18,8 @@ STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 1. **Charger** un fichier (bouton ou glisser-déposer dans la fenêtre).
 2. **Se déplacer** : clic gauche maintenu pour tourner, molette pour zoomer, clic droit (ou molette enfoncée) maintenu pour déplacer la vue. Un clic sur une pièce du modèle la retrouve dans la liste.
 3. **Cadrer** : vues rapides (face, 3/4, profil, plongée…), focales de 24 à 105 mm, et un **format d'image** (libre, 1:1, 4:5, 3:2, 16:9, 9:16) affiché comme un cadre à l'écran. Les **vues enregistrées** gardent un cadrage pour le réappliquer à d'autres produits ; elles s'exportent et s'importent sous forme de fichier.
-4. **Positionner le produit** : quarts de tour pour redresser un produit qui arrive couché, ou glisser pour le faire tourner sur un seul axe (X, Y ou Z, avec Réinitialiser).
+4. **Positionner le produit** : quarts de tour pour redresser un produit qui arrive couché, ou glisser pour le faire tourner sur un seul axe (X, Y ou Z, avec Réinitialiser). Les axes suivent la convention CAO : Z est vertical.
+   Le **cube d'orientation** en haut à droite tourne avec la vue : cliquez une face, une arête ou un coin pour voir le produit de ce côté.
 5. **Choisir les éléments** : la liste **Éléments** reprend l'arborescence du fichier, avec une recherche. Décocher pour masquer une pièce, **Seul** pour l'isoler, **Tout afficher** pour revenir ; au survol d'un nom, la pièce s'allume en orange.
 6. **Vue éclatée** : le curseur écarte les pièces du centre du produit. **Tous les éléments** éclate tout, **Éléments choisis** n'éclate que les pièces ou groupes marqués ✦ dans la liste.
 7. **Choisir le rendu** : **Rendu** ombré (gris neutre ou couleurs du fichier), carte de **Profondeur** (blanc = proche) ou dessin au **Trait**. Fond gris, blanc ou transparent.
