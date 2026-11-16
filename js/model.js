@@ -1,0 +1,173 @@
+// The loaded model: materials, parts list, exploded view, orientation and picking.
+import { THREE, view, holder, floor, sphere, place, invalidate, cam, renderer } from './viewer.js';
+import { t } from './i18n.js';
+
+const $ = id => document.getElementById(id);
+const greyMat = new THREE.MeshStandardMaterial({ color: 0xbdbdbb, roughness: .6, metalness: 0, side: THREE.DoubleSide });
+const hiMat = new THREE.MeshStandardMaterial({ color: 0xe8a030, emissive: 0x5a3000, roughness: .5, side: THREE.DoubleSide });
+
+export let model = null;
+let rootNode = null, homeQ = null, homeP = null;
+const rows = [], meshRow = new Map(), lit = new Set();
+
+// ---------- materials
+const matOf = m => lit.has(m) ? hiMat : view.colors && m.userData.orig ? m.userData.orig : greyMat;
+export function applyMaterials() { if (model) model.traverse(o => { if (o.isMesh) o.material = matOf(o); }); invalidate(); }
+function highlight(meshes, on) { meshes.forEach(m => { on ? lit.add(m) : lit.delete(m); m.material = matOf(m); }); invalidate(); }
+
+function dispose(obj) {
+  const mats = new Set();
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    [o.material, o.userData.orig].flat().forEach(m => { if (m && m !== greyMat && m !== hiMat) mats.add(m); });
+  });
+  mats.forEach(m => { Object.values(m).forEach(v => { if (v && v.isTexture) v.dispose(); }); m.dispose(); });
+}
+
+// ---------- placing the model on the floor
+function normalize() {
+  holder.position.set(0, 0, 0); holder.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(holder), c = b.getCenter(new THREE.Vector3());
+  holder.position.set(-c.x, -b.min.y, -c.z); holder.updateMatrixWorld(true);
+  new THREE.Box3().setFromObject(holder).getBoundingSphere(sphere);
+  if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) throw new Error(t('empty'));
+  floor.scale.setScalar(sphere.radius * 1.6);
+}
+const saveHome = () => { homeQ = model.quaternion.clone(); homeP = model.position.clone(); };
+
+export function setModel(obj, tree) {
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    o.userData.orig = o.userData.orig === null ? null : o.material;
+  });
+  const old = model;
+  if (old) holder.remove(old);
+  holder.add(obj);
+  try { normalize(); } catch (e) { holder.remove(obj); dispose(obj); if (old) { holder.add(old); normalize(); } throw e; }
+  if (old) dispose(old);
+  model = obj; lit.clear(); applyMaterials();
+  buildParts(tree || treeFromObject(obj)); saveHome(); place(view.dir);
+}
+
+// ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]})
+function treeFromObject(obj) {
+  const walk = o => {
+    const n = { name: o.name || '', meshes: o.isMesh ? [o] : [], children: [] };
+    o.children.forEach(c => { const k = walk(c); if (k.meshes.length || k.children.length) n.children.push(k); });
+    return n;
+  };
+  const r = walk(obj);
+  while (!r.meshes.length && r.children.length === 1 && !r.children[0].meshes.length) Object.assign(r, r.children[0]);
+  return r;
+}
+const allMeshes = n => n.all ??= [...n.meshes, ...n.children.flatMap(allMeshes)];
+
+function refreshChecks() {
+  rows.forEach(({ node, cb }) => { const ms = allMeshes(node), v = ms.filter(m => m.visible).length; cb.checked = v > 0; cb.indeterminate = v > 0 && v < ms.length; });
+  invalidate();
+}
+function buildParts(root) {
+  rootNode = root; rows.length = 0; meshRow.clear(); expSet.clear(); initExplode();
+  const box = $('parts'); box.innerHTML = ''; $('partFilter').value = '';
+  const mkNode = (node, depth) => {
+    const el = document.createElement('div'), kids = node.children.length > 0;
+    el.className = 'node' + (kids ? '' : ' leaf') + (depth > 0 ? ' closed' : '');
+    const line = document.createElement('div'); line.className = 'line';
+    const tw = document.createElement('span'); tw.className = 'tw';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+    const nm = document.createElement('span'); nm.className = 'nm';
+    const name = node.name || node.meshes[0]?.name || '—';
+    nm.textContent = name + (kids ? ` (${allMeshes(node).length})` : ''); nm.title = nm.textContent;
+    const so = document.createElement('button'); so.className = 'solo'; so.textContent = t('solo');
+    const ex = document.createElement('button'); ex.className = 'ex'; ex.textContent = '✦'; ex.title = t('exMark');
+    line.append(tw, cb, nm, so, ex); el.append(line);
+    if (kids) {
+      const k = document.createElement('div'); k.className = 'kids';
+      node.children.forEach(c => k.append(mkNode(c, depth + 1))); el.append(k);
+      tw.onclick = nm.ondblclick = () => el.classList.toggle('closed');
+    }
+    cb.onchange = () => { allMeshes(node).forEach(m => m.visible = cb.checked); refreshChecks(); };
+    so.onclick = () => { const keep = new Set(allMeshes(node)); allMeshes(rootNode).forEach(m => m.visible = keep.has(m)); refreshChecks(); };
+    line.onmouseenter = () => highlight(allMeshes(node), true);
+    line.onmouseleave = () => highlight(allMeshes(node), false);
+    ex.onclick = () => { const ms = allMeshes(node), on = !ms.every(m => expSet.has(m)); ms.forEach(m => on ? expSet.add(m) : expSet.delete(m)); refreshEx(); applyExplode(); };
+    const row = { node, el, line, cb, ex, so, name: name.toLowerCase() }; rows.push(row);
+    node.meshes.forEach(m => meshRow.set(m, row));
+    return el;
+  };
+  let top = root.meshes.length ? [root] : root.children;
+  if (top.length === 1 && !top[0].meshes.length) top = top[0].children;
+  top.forEach(n => box.append(mkNode(n, 0)));
+  $('partCount').textContent = allMeshes(root).length;
+}
+export function relabelParts() { rows.forEach(r => { r.so.textContent = t('solo'); r.ex.title = t('exMark'); }); }
+export function showAll() { if (rootNode) { allMeshes(rootNode).forEach(m => m.visible = true); refreshChecks(); } }
+export function expandAll(open) { document.querySelectorAll('#parts .node:not(.leaf)').forEach(n => n.classList.toggle('closed', !open)); }
+export function filterParts(q) {
+  q = q.trim().toLowerCase();
+  const visit = el => {
+    let hit = false;
+    el.querySelectorAll(':scope>.kids>.node').forEach(k => { if (visit(k)) hit = true; });
+    const row = rows.find(r => r.el === el), own = !q || row.name.includes(q);
+    el.hidden = !(own || hit);
+    if (q && hit) el.classList.remove('closed');
+    return own || hit;
+  };
+  document.querySelectorAll('#parts>.node').forEach(visit);
+}
+
+// ---------- exploded view
+const expSet = new Set(); let expMode = 'all', expBase = new Map();
+function initExplode() { expBase = new Map(); if (!model) return; model.traverse(o => { if (o.isMesh) expBase.set(o, o.position.clone()); }); $('exp').value = 0; $('expVal').textContent = '0%'; }
+function refreshEx() { rows.forEach(({ node, ex }) => { const ms = allMeshes(node); ex.classList.toggle('on', ms.length > 0 && ms.every(m => expSet.has(m))); }); }
+export function applyExplode() {
+  if (!model) return;
+  const f = $('exp').value / 100 * 1.5; $('expVal').textContent = $('exp').value + '%';
+  expBase.forEach((p, m) => m.position.copy(p)); model.updateMatrixWorld(true); invalidate();
+  if (f === 0) return;
+  const C = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+  expBase.forEach((p, m) => {
+    if (expMode === 'sel' && !expSet.has(m)) return;
+    const c = m.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    const target = m.parent.localToWorld(p.clone()).add(c.sub(C).multiplyScalar(f)); m.position.copy(m.parent.worldToLocal(target));
+  });
+  model.updateMatrixWorld(true);
+}
+export function setExplodeMode(m) { expMode = m; $('parts').classList.toggle('sel', m === 'sel'); applyExplode(); }
+
+// ---------- orientation
+// Quarter turn around a world axis; the model is then put back on the floor and the view reframed.
+export function turn90(ax) {
+  if (!model) return;
+  expBase.forEach((p, m) => m.position.copy(p));
+  model.quaternion.copy(homeQ); model.position.copy(homeP);
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(+(ax === 'x'), +(ax === 'y'), +(ax === 'z')), Math.PI / 2);
+  model.position.applyQuaternion(q); model.quaternion.premultiply(q);
+  normalize(); saveHome(); place(view.dir); applyExplode();
+}
+// Free turn around one axis through the middle of the product (used while dragging).
+export function spin(ax, angle) {
+  if (!model) return;
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(+(ax === 'x'), +(ax === 'y'), +(ax === 'z')), angle);
+  const C = holder.worldToLocal(sphere.center.clone());
+  model.position.sub(C).applyQuaternion(q).add(C); model.quaternion.premultiply(q); invalidate();
+}
+export function resetSpin() { if (model) { model.quaternion.copy(homeQ); model.position.copy(homeP); invalidate(); } }
+
+// ---------- picking: click a part on the model to find it in the list
+const ray = new THREE.Raycaster(); let flash = 0;
+export function pick(clientX, clientY) {
+  if (!model) return false;
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2((clientX - r.left) / r.width * 2 - 1, -(clientY - r.top) / r.height * 2 + 1), cam);
+  const hit = ray.intersectObject(model, true).find(h => h.object.isMesh && h.object.visible), row = hit && meshRow.get(hit.object);
+  document.querySelectorAll('#parts .line.picked').forEach(l => l.classList.remove('picked'));
+  if (!row) return false;
+  for (let p = row.el.parentElement; p && p.id !== 'parts'; p = p.parentElement) { p.classList.remove('closed'); p.hidden = false; }
+  row.el.hidden = false; row.line.classList.add('picked'); row.line.scrollIntoView({ block: 'nearest' });
+  const ms = [...lit]; highlight(ms, false); clearTimeout(flash);
+  highlight([hit.object], true); flash = setTimeout(() => highlight([hit.object], false), 900);
+  return true;
+}
