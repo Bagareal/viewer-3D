@@ -11,7 +11,7 @@ export const afterDraw = []; // drawn after the main view, never in exported ima
 const frameEl = document.getElementById('frame');
 
 // Everything that defines "the picture": saved with views, read by the export.
-export const view = { focal: 50, ratio: 0, style: 'shaded', bg: 'grey', floor: true, colors: false, dir: [-.8, .35, 1] };
+export const view = { focal: 50, ratio: 0, style: 'shaded', bg: 'grey', floor: false, colors: false, dir: [-.8, .35, 1] };
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
