@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Viewer 3D</title>
+<meta name="robots" content="noindex">
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#1d1f22;color:#e8e8e6;font:13px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+#app{display:flex;height:100%}
+#stage{flex:1;position:relative;background:#e9e9e7;overflow:hidden}
+#stage canvas{display:block;width:100%;height:100%}
+#msg{white-space:pre-line;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#444;font-size:15px;background:rgba(233,233,231,.85);text-align:center;padding:20px}
+#msg[hidden]{display:none}
+#big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(233,233,231,.92);z-index:3;padding:20px}
+#big[hidden]{display:none}
+#big .box{max-width:460px;background:#26292d;color:#e8e8e6;border-radius:10px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#big h3{margin:0 0 8px;color:#e8b04a;font-size:15px}#big p{margin:0 0 10px;color:#c9ccd0}
+#lang{position:absolute;top:12px;right:12px;z-index:2;background:#26292d;color:#e8e8e6;font-weight:600}
+aside{width:300px;background:#26292d;display:flex;flex-direction:column;min-height:0}
+#tabs{display:flex;border-bottom:1px solid #3a3e43}
+#tabs button{flex:1;border:none;border-radius:0;background:none;padding:12px 6px;color:#9a9da2;font-weight:600;border-bottom:2px solid transparent}
+#tabs button.on{color:#e8e8e6;border-bottom-color:#e8b04a;background:none}
+.pane{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}
+.pane[hidden]{display:none}
+h1{font-size:15px;margin:0;word-break:break-all}h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9a9da2;margin:0 0 6px}
+h3{font-size:13px;margin:0 0 4px;color:#e8b04a}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+button{background:#33373c;color:#e8e8e6;border:1px solid #44494f;border-radius:6px;padding:6px 9px;cursor:pointer;font:inherit}
+button:hover{border-color:#6a7077}button.on{background:#e8b04a;color:#1d1f22;border-color:#e8b04a}
+.big{width:100%;padding:10px;font-size:14px;font-weight:600}
+#save{background:#e8b04a;color:#1d1f22;border:none}
+#load{background:#3c4a5a;border-color:#56687c}
+.hint{color:#9a9da2;font-size:12px;margin:4px 0 0}
+label{display:flex;gap:6px;align-items:center;color:#c9ccd0;margin-top:4px}
+#parts{max-height:320px;overflow:auto;background:#1f2225;border:1px solid #3a3e43;border-radius:6px;padding:4px 0;font-size:12px}
+#parts:empty::before{content:attr(data-empty);display:block;padding:8px;color:#7d8086}
+.node>.line{display:flex;align-items:center;gap:4px;padding:2px 6px;cursor:default;white-space:nowrap}
+.node>.line:hover{background:#33373c}
+.node .kids{padding-left:14px}
+.node.closed>.kids{display:none}
+.tw{width:14px;color:#9a9da2;cursor:pointer;text-align:center;flex:none;user-select:none}
+.nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.solo{padding:0 6px;font-size:11px;line-height:18px;visibility:hidden}
+.node>.line:hover .solo{visibility:visible}
+.node input{margin:0}
+.ex{display:none;padding:0 5px;font-size:11px;line-height:18px;color:#9a9da2}
+#parts.sel .ex{display:inline-block}.ex.on{background:#e8b04a;color:#1d1f22;border-color:#e8b04a}
+input[type=range]{width:100%;accent-color:#e8b04a}
+#help p,#help li{color:#c9ccd0;margin:0 0 6px}#help ul{padding-left:18px;margin:0}
+kbd{background:#33373c;border:1px solid #4a4f55;border-radius:4px;padding:0 5px;font:11px ui-monospace,monospace}
+@media (max-width:760px){#app{flex-direction:column}aside{width:auto;height:50%}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head><body><div id="app">
+<div id="stage"><div id="msg"></div><div id="big" hidden><div class="box"><h3 data-t="bigTitle"></h3><p id="bigText"></p><p data-t="bigTip"></p><div class="row"><button id="bigGo" data-t="bigGo"></button><button id="bigNo" class="on" data-t="bigNo"></button></div></div></div><button id="lang">EN</button></div>
+<aside>
+<div id="tabs"><button class="on" data-tab="tools" data-t="tabTools"></button><button data-tab="help" data-t="tabHelp"></button></div>
+<div class="pane" id="tools">
+<div><h2 data-t="model"></h2><h1 id="name">—</h1></div>
+<div><button id="load" class="big" data-t="load"></button>
+<input type="file" id="file" accept=".stp,.step,.igs,.iges,.glb,.gltf,.obj,.stl" hidden>
+<p class="hint" data-t="loadHint"></p></div>
+<div><h2 data-t="views"></h2><div class="row" id="presets"></div></div>
+<div><h2 data-t="focal"></h2><div class="row" id="focals"></div></div>
+<div><h2 data-t="rot"></h2><div class="row" id="axes"><button class="on" data-ax="free" data-t="free"></button><button data-ax="x">X</button><button data-ax="y">Y</button><button data-ax="z">Z</button><button id="rotReset" data-t="reset"></button></div>
+<p class="hint" data-t="rotHint"></p></div>
+<div><h2 data-t="orient"></h2><div class="row">
+<button data-r="x">↻ X</button><button data-r="y">↻ Y</button><button data-r="z">↻ Z</button></div>
+<p class="hint" data-t="orientHint"></p></div>
+<div><h2 data-t="parts"></h2><div class="row" style="margin-bottom:6px"><button id="showAll" data-t="showAll"></button><button id="expand" data-t="expand"></button></div>
+<div id="parts"></div><p class="hint" data-t="partsHint"></p></div>
+<div><h2 data-t="explode"></h2><input type="range" id="exp" min="0" max="100" value="0">
+<div class="row" style="margin-top:6px"><button id="expAll" class="on" data-t="expAll"></button><button id="expSel" data-t="expSel"></button></div>
+<p class="hint" data-t="expHint"></p></div>
+<div><label><input type="checkbox" id="floor" checked> <span data-t="floor"></span></label>
+<label><input type="checkbox" id="white"> <span data-t="white"></span></label></div>
+<div><button id="save" class="big" data-t="save"></button>
+<p class="hint" id="savemsg" data-t="saveHint"></p></div>
+</div>
+<div class="pane" id="help" hidden></div>
+</aside></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+const $=id=>document.getElementById(id),stage=$('stage'),msg=$('msg');
+const say=s=>{msg.textContent=s;msg.hidden=!s};
+
+// ---------- i18n
+const T={
+fr:{tabTools:'Outils',tabHelp:'Mode d’emploi',model:'Modèle',load:'Charger un fichier 3D',loadHint:'STEP / IGES jusqu’à ~100 Mo. Au-delà, convertissez d’abord le fichier en GLB (avec un autre logiciel ou une IA), puis chargez le GLB : il s’ouvre tout de suite et garde les éléments séparés.',bigTitle:'Fichier STEP volumineux',bigTip:'Au-delà de ~100 Mo, le navigateur manque souvent de mémoire pour lire un STEP. Conseil : convertissez-le d’abord en GLB (avec un autre logiciel ou une IA) en gardant les pièces séparées, puis chargez le GLB.',bigGo:'Essayer quand même',bigNo:'Annuler',bigSize:'Ce fichier fait {mb} Mo.',oom:'mémoire du navigateur insuffisante pour ce STEP. Convertissez-le d’abord en GLB (avec un autre logiciel ou une IA), puis chargez le GLB.',views:'Vues rapides',focal:'Focale',orient:'Orientation',orientHint:'Si le produit arrive couché, redressez-le ici.',
+ parts:'Éléments',showAll:'Tout afficher',expand:'Tout déplier',collapse:'Tout replier',partsHint:'Cochez / décochez pour afficher ou masquer. « Seul » isole un élément. Survolez un nom pour le repérer sur le modèle.',partsEmpty:'Aucun modèle chargé',solo:'Seul',rot:'Rotation',free:'Libre',reset:'Réinitialiser',rotHint:'Libre : on tourne autour du produit. X, Y ou Z : le clic gauche fait tourner le produit uniquement autour de cet axe (Y = vertical). Réinitialiser le remet comme au départ.',explode:'Vue éclatée',expAll:'Tous les éléments',expSel:'Éléments choisis',expHint:'Le curseur écarte les pièces du centre. En mode « Éléments choisis », cliquez ✦ dans la liste sur les pièces ou groupes à éclater.',
+ floor:'Sol',white:'Fond blanc',save:'Enregistrer le JPEG de cette vue',saveHint:'3000 px sur le côté long.',
+ start:'Chargez un fichier 3D pour commencer\nSTEP, IGES, GLB, OBJ, STL · glissez-le ici ou utilisez le bouton à droite.\nLe fichier reste sur votre ordinateur : rien n’est envoyé en ligne.',opening:'Ouverture de ',prep:'Préparation du lecteur STEP…',conv:'Conversion en cours…',fail:'Impossible d’ouvrir le fichier : ',unsup:'format non pris en charge',empty:'aucune géométrie trouvée dans le fichier',saved:'Enregistré : ',view:'vue',
+ presets:['Face','3/4 gauche','3/4 droite','Profil','Plongée','Contre-plongée','Arrière'],
+ help:`<div><h3>1. Charger un fichier</h3><p>Bouton <b>Charger un fichier 3D</b> ou glisser-déposer le fichier dans la fenêtre. Formats : STEP / STP, IGES, GLB / GLTF, OBJ, STL.</p><p>Le fichier est lu par votre navigateur et reste sur votre ordinateur : rien n’est envoyé en ligne.</p><p><b>STEP jusqu’à ~100 Mo.</b> Au-delà, le navigateur manque de mémoire : convertissez d’abord le STEP en <b>GLB</b> (avec un autre logiciel ou une IA) en gardant les pièces séparées. Le GLB s’ouvre tout de suite et garde la liste des éléments et la vue éclatée.</p></div>
+<div><h3>2. Se déplacer dans la scène</h3><ul><li><b>Clic gauche</b> maintenu : tourner autour du produit</li><li><b>Molette</b> : zoomer</li><li><b>Molette enfoncée</b> (ou clic droit) maintenue : déplacer la vue</li></ul></div>
+<div><h3>3. Cadrer</h3><ul><li><b>Rotation</b> : <b>Libre</b> pour tourner autour du produit, ou <b>X</b> / <b>Y</b> / <b>Z</b> pour faire tourner le produit sur un seul axe (Y = vertical) ; <b>Réinitialiser</b> le remet comme au départ</li><li><b>Vues rapides</b> : face, 3/4, profil, plongée…</li><li><b>Focale</b> : 24 mm = grand angle, perspective forte ; 85–105 mm = téléobjectif, perspective écrasée</li><li><b>Orientation</b> : si le produit arrive couché, tournez-le de 90° autour de X, Y ou Z</li></ul></div>
+<div><h3>4. Choisir les éléments</h3><p>La liste <b>Éléments</b> reprend les pièces du fichier. Décochez une pièce pour la masquer, cliquez <b>Seul</b> pour ne garder qu’elle, <b>Tout afficher</b> pour revenir. Survolez un nom : la pièce s’allume en orange sur le modèle.</p></div>
+<div><h3>Vue éclatée</h3><p>Le curseur <b>Vue éclatée</b> écarte les pièces du centre du produit. <b>Tous les éléments</b> éclate tout ; <b>Éléments choisis</b> n’éclate que les pièces ou groupes marqués avec ✦ dans la liste <b>Éléments</b>.</p></div>
+<div><h3>5. Enregistrer</h3><p><b>Enregistrer le JPEG de cette vue</b> télécharge l’image exactement comme à l’écran, à 3000 px sur le côté long. Cochez <b>Fond blanc</b> et décochez <b>Sol</b> pour un détourage plus facile.</p></div>
+<div><h3>Astuce</h3><p>Utilisez l’image comme référence de position et de perspective, et donnez à côté une vraie photo du produit pour les couleurs et les matières.</p></div>`},
+en:{tabTools:'Tools',tabHelp:'How to use',model:'Model',load:'Load a 3D file',loadHint:'STEP / IGES up to ~100 MB. Above that, first convert the file to GLB (with another program or an AI), then load the GLB: it opens instantly and keeps the parts separate.',bigTitle:'Large STEP file',bigTip:'Above ~100 MB the browser often runs out of memory reading a STEP. Tip: first convert it to GLB (with another program or an AI), keeping the parts separate, then load the GLB.',bigGo:'Try anyway',bigNo:'Cancel',bigSize:'This file is {mb} MB.',oom:'not enough browser memory for this STEP. First convert it to GLB (with another program or an AI), then load the GLB.',views:'Quick views',focal:'Focal length',orient:'Orientation',orientHint:'If the product comes in lying down, straighten it here.',
+ parts:'Parts',showAll:'Show all',expand:'Expand all',collapse:'Collapse all',partsHint:'Tick / untick to show or hide. “Solo” isolates a part. Hover a name to spot it on the model.',partsEmpty:'No model loaded',solo:'Solo',rot:'Rotation',free:'Free',reset:'Reset',rotHint:'Free: orbit around the product. X, Y or Z: left drag turns the product around that axis only (Y = vertical). Reset puts it back as it was.',explode:'Exploded view',expAll:'All parts',expSel:'Chosen parts',expHint:'The slider moves parts away from the centre. In “Chosen parts” mode, click ✦ in the list on the parts or groups to explode.',
+ floor:'Floor',white:'White background',save:'Save JPEG of this view',saveHint:'3000 px on the long side.',
+ start:'Load a 3D file to start\nSTEP, IGES, GLB, OBJ, STL · drop it here or use the button on the right.\nThe file stays on your computer: nothing is sent online.',opening:'Opening ',prep:'Preparing the STEP reader…',conv:'Converting…',fail:'Could not open the file: ',unsup:'unsupported format',empty:'no geometry found in the file',saved:'Saved: ',view:'view',
+ presets:['Front','3/4 left','3/4 right','Side','High angle','Low angle','Back'],
+ help:`<div><h3>1. Load a file</h3><p><b>Load a 3D file</b> button, or drag and drop the file onto the window. Formats: STEP / STP, IGES, GLB / GLTF, OBJ, STL.</p><p>The file is read by your browser and stays on your computer: nothing is sent online.</p><p><b>STEP up to ~100 MB.</b> Above that the browser runs out of memory: first convert the STEP to <b>GLB</b> (with another program or an AI), keeping the parts separate. The GLB opens instantly and keeps the parts list and the exploded view.</p></div>
+<div><h3>2. Move around</h3><ul><li>Hold <b>left click</b>: orbit around the product</li><li><b>Scroll wheel</b>: zoom</li><li>Hold the <b>wheel button</b> (or right click): pan the view</li></ul></div>
+<div><h3>3. Frame the shot</h3><ul><li><b>Rotation</b>: <b>Free</b> to orbit around the product, or <b>X</b> / <b>Y</b> / <b>Z</b> to turn the product on one axis only (Y = vertical); <b>Reset</b> puts it back as it was</li><li><b>Quick views</b>: front, 3/4, side, high angle…</li><li><b>Focal length</b>: 24 mm = wide angle, strong perspective; 85–105 mm = telephoto, flattened perspective</li><li><b>Orientation</b>: if the product comes in lying down, turn it 90° around X, Y or Z</li></ul></div>
+<div><h3>4. Pick the parts</h3><p>The <b>Parts</b> list shows the pieces in the file. Untick a part to hide it, click <b>Solo</b> to keep only that one, <b>Show all</b> to go back. Hover a name: the part lights up orange on the model.</p></div>
+<div><h3>Exploded view</h3><p>The <b>Exploded view</b> slider moves the parts away from the product's centre. <b>All parts</b> explodes everything; <b>Chosen parts</b> only explodes the parts or groups marked with ✦ in the <b>Parts</b> list.</p></div>
+<div><h3>5. Save</h3><p><b>Save JPEG of this view</b> downloads the image exactly as on screen, 3000 px on the long side. Tick <b>White background</b> and untick <b>Floor</b> for easier cut-outs.</p></div>
+<div><h3>Tip</h3><p>Use the image as a position and perspective reference, and give a real photo of the product alongside it for colours and materials.</p></div>`}};
+let lang='fr';try{lang=localStorage.getItem('lang')||(navigator.language||'fr').slice(0,2)}catch(e){}if(!T[lang])lang='en';
+const t=k=>T[lang][k];
+
+// ---------- scene
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));stage.prepend(renderer.domElement);
+const BG=new THREE.Color(0xe9e9e7),scene=new THREE.Scene();scene.background=BG;
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a8a8a,1.6));
+[[1,1.6,1.2,1.6],[-1.2,.5,.4,.6],[-.3,1,-1.4,.7]].forEach(([x,y,z,i])=>{const l=new THREE.DirectionalLight(0xffffff,i);l.position.set(x,y,z);scene.add(l)});
+const cam=new THREE.PerspectiveCamera(30,1,.001,100);
+const ctr=new OrbitControls(cam,renderer.domElement);ctr.enableDamping=true;ctr.dampingFactor=.12;
+ctr.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.PAN};ctr.screenSpacePanning=true;
+renderer.domElement.addEventListener('mousedown',e=>{if(e.button===1)e.preventDefault()}); // no autoscroll on wheel click
+const floor=new THREE.Mesh(new THREE.CircleGeometry(1,96),new THREE.MeshLambertMaterial({color:0xd8d8d5}));floor.rotation.x=-Math.PI/2;scene.add(floor);
+const mat=new THREE.MeshStandardMaterial({color:0xbdbdbb,roughness:.6,metalness:0,flatShading:true,side:THREE.DoubleSide});
+const hiMat=new THREE.MeshStandardMaterial({color:0xe8a030,emissive:0x5a3000,roughness:.5,flatShading:true,side:THREE.DoubleSide});
+const holder=new THREE.Group();scene.add(holder);let model=null,focal=50,lastDir=[-.8,.35,1];
+const sphere=new THREE.Sphere();
+
+function size(){const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;setFov()}
+function setFov(){const s=2*Math.atan(12/focal);cam.fov=(cam.aspect>=1?s:2*Math.atan(Math.tan(s/2)/cam.aspect))*180/Math.PI;cam.updateProjectionMatrix()}
+function fitDist(){const v=cam.fov*Math.PI/180,h=2*Math.atan(Math.tan(v/2)*cam.aspect);return sphere.radius*1.08/Math.sin(Math.min(v,h)/2)}
+function place(dir){lastDir=dir;const d=new THREE.Vector3(...dir).normalize();cam.position.copy(sphere.center).addScaledVector(d,fitDist());ctr.target.copy(sphere.center);
+ cam.near=sphere.radius/100;cam.far=sphere.radius*100;cam.updateProjectionMatrix();ctr.update()}
+function normalize(){holder.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(holder);const c=b.getCenter(new THREE.Vector3());
+ holder.position.x-=c.x;holder.position.z-=c.z;holder.position.y-=b.min.y;holder.updateMatrixWorld(true);
+ new THREE.Box3().setFromObject(holder).getBoundingSphere(sphere);if(!Number.isFinite(sphere.radius)||sphere.radius<=0)throw new Error(t('empty'));floor.scale.setScalar(sphere.radius*1.6)}
+function setModel(obj,name,tree){obj.traverse(o=>{if(o.isMesh)o.material=mat});
+ if(model)holder.remove(model);holder.position.set(0,0,0);model=obj;holder.add(obj);
+ try{normalize()}catch(e){holder.remove(obj);model=null;throw e}
+ $('name').textContent=name;buildParts(tree||treeFromObject(obj));saveHome();place(lastDir)}
+
+// ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]})
+function treeFromObject(obj){const walk=o=>{const n={name:o.name||'',meshes:o.isMesh?[o]:[],children:[]};o.children.forEach(c=>{const k=walk(c);if(k.meshes.length||k.children.length)n.children.push(k)});return n};
+ const r=walk(obj);while(!r.meshes.length&&r.children.length===1&&!r.children[0].meshes.length){Object.assign(r,r.children[0])}return r}
+const allMeshes=n=>[...n.meshes,...n.children.flatMap(allMeshes)];
+let rootNode=null;const rows=[];
+function refreshChecks(){rows.forEach(({node,cb})=>{const ms=allMeshes(node),v=ms.filter(m=>m.visible).length;cb.checked=v>0;cb.indeterminate=v>0&&v<ms.length})}
+function buildParts(root){rootNode=root;rows.length=0;expSet.clear();initExplode();const box=$('parts');box.innerHTML='';
+ const top=root.meshes.length?[root]:root.children;
+ const mkNode=(node,depth)=>{const el=document.createElement('div');el.className='node'+(depth>0?' closed':'');
+  const line=document.createElement('div');line.className='line';
+  const tw=document.createElement('span');tw.className='tw';tw.textContent=node.children.length?'▸':'';
+  const cb=document.createElement('input');cb.type='checkbox';cb.checked=true;
+  const nm=document.createElement('span');nm.className='nm';const count=allMeshes(node).length;
+  nm.textContent=(node.name||node.meshes[0]?.name||'—')+(node.children.length?` (${count})`:'');nm.title=nm.textContent;
+  const so=document.createElement('button');so.className='solo';so.textContent=t('solo');
+  const ex=document.createElement('button');ex.className='ex';ex.textContent='✦';
+  line.append(tw,cb,nm,so,ex);el.append(line);
+  if(node.children.length){const kids=document.createElement('div');kids.className='kids';node.children.forEach(c=>kids.append(mkNode(c,depth+1)));el.append(kids);
+   const tog=()=>{el.classList.toggle('closed');tw.textContent=el.classList.contains('closed')?'▸':'▾'};tw.onclick=tog;nm.ondblclick=tog;if(depth===0)tw.textContent='▾'}
+  cb.onchange=()=>{allMeshes(node).forEach(m=>m.visible=cb.checked);refreshChecks()};
+  so.onclick=()=>{const keep=new Set(allMeshes(node));allMeshes(rootNode).forEach(m=>m.visible=keep.has(m));refreshChecks()};
+  line.onmouseenter=()=>allMeshes(node).forEach(m=>m.material=hiMat);
+  line.onmouseleave=()=>allMeshes(node).forEach(m=>m.material=mat);
+  ex.onclick=()=>{const ms=allMeshes(node),on=!ms.every(m=>expSet.has(m));ms.forEach(m=>on?expSet.add(m):expSet.delete(m));refreshEx();applyExplode()};
+  rows.push({node,cb,ex});return el};
+ if(top.length===1&&!top[0].meshes.length)top[0].children.forEach(c=>box.append(mkNode(c,0)));else top.forEach(n=>box.append(mkNode(n,0)))}
+// ---------- exploded view
+const expSet=new Set();let expMode='all';let expBase=new Map();
+function initExplode(){expBase=new Map();if(!model)return;model.traverse(o=>{if(o.isMesh){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();expBase.set(o,o.position.clone())}});$('exp').value=0}
+function refreshEx(){rows.forEach(({node,ex})=>{const ms=allMeshes(node);ex.classList.toggle('on',ms.length>0&&ms.every(m=>expSet.has(m)))})}
+function applyExplode(){if(!model)return;const f=$('exp').value/100*1.5;
+ expBase.forEach((p,m)=>m.position.copy(p));model.updateMatrixWorld(true);if(f===0)return;
+ const C=new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+ expBase.forEach((p,m)=>{if(expMode==='sel'&&!expSet.has(m))return;
+  const c=m.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+  const target=m.parent.localToWorld(p.clone()).add(c.sub(C).multiplyScalar(f));m.position.copy(m.parent.worldToLocal(target))});
+ model.updateMatrixWorld(true)}
+$('exp').oninput=applyExplode;
+const setMode=m=>{expMode=m;$('expAll').classList.toggle('on',m==='all');$('expSel').classList.toggle('on',m==='sel');$('parts').classList.toggle('sel',m==='sel');applyExplode()};
+$('expAll').onclick=()=>setMode('all');$('expSel').onclick=()=>setMode('sel');
+$('showAll').onclick=()=>{if(rootNode){allMeshes(rootNode).forEach(m=>m.visible=true);refreshChecks()}};
+let expanded=false;$('expand').onclick=()=>{expanded=!expanded;document.querySelectorAll('#parts .node').forEach(n=>{if(n.querySelector(':scope>.kids')){n.classList.toggle('closed',!expanded);n.querySelector('.tw').textContent=expanded?'▾':'▸'}});$('expand').textContent=t(expanded?'collapse':'expand')};
+
+// ---------- controls UI
+const presets=[[0,.12,1],[-.8,.35,1],[.8,.35,1],[1,.1,0],[.3,1.4,.8],[.5,-.05,1],[0,.15,-1]];
+const mkBtns=(id,vals,label,fn,init)=>{const el=$(id);vals.forEach((v,i)=>{const b=document.createElement('button');b.textContent=label(v,i);if(i===init)b.classList.add('on');
+ b.onclick=()=>{[...el.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');fn(v)};el.append(b)})};
+mkBtns('presets',presets,(v,i)=>'',v=>place(v),1);
+mkBtns('focals',[24,35,50,85,105],v=>v+' mm',v=>{const d=cam.position.distanceTo(ctr.target),old=cam.fov;focal=v;setFov();
+ const nd=d*Math.tan(old*Math.PI/360)/Math.tan(cam.fov*Math.PI/360);const dir=cam.position.clone().sub(ctr.target).normalize();cam.position.copy(ctr.target).addScaledVector(dir,nd);ctr.update()},2);
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{if(!model)return;expBase.forEach((p,m)=>m.position.copy(p));if(homeQ){model.quaternion.copy(homeQ);model.position.copy(homeP)}model.rotation[b.dataset.r]+=Math.PI/2;holder.position.set(0,0,0);normalize();saveHome();place(lastDir);applyExplode()});
+// ---------- single-axis rotation
+let axis='free',drag=null,homeQ=null,homeP=null;
+const saveHome=()=>{if(model){homeQ=model.quaternion.clone();homeP=model.position.clone()}};
+document.querySelectorAll('[data-ax]').forEach(b=>b.onclick=()=>{axis=b.dataset.ax;document.querySelectorAll('[data-ax]').forEach(x=>x.classList.toggle('on',x===b));ctr.enableRotate=axis==='free'});
+renderer.domElement.addEventListener('pointerdown',e=>{if(axis==='free'||e.button!==0||!model)return;drag={x:e.clientX,y:e.clientY};renderer.domElement.setPointerCapture(e.pointerId)});
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag={x:e.clientX,y:e.clientY};
+ const a=(axis==='x'?dy:dx)*.01,v=new THREE.Vector3(axis==='x'?1:0,axis==='y'?1:0,axis==='z'?1:0),q=new THREE.Quaternion().setFromAxisAngle(v,a);
+ const C=holder.worldToLocal(sphere.center.clone());model.position.sub(C).applyQuaternion(q).add(C);model.quaternion.premultiply(q)});
+const endDrag=()=>{drag=null};renderer.domElement.addEventListener('pointerup',endDrag);renderer.domElement.addEventListener('pointercancel',endDrag);
+$('rotReset').onclick=()=>{if(model&&homeQ){model.quaternion.copy(homeQ);model.position.copy(homeP)}};
+$('floor').onchange=e=>floor.visible=e.target.checked;
+$('white').onchange=e=>scene.background=e.target.checked?new THREE.Color(0xffffff):BG;
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+ $('tools').hidden=b.dataset.tab!=='tools';$('help').hidden=b.dataset.tab!=='help'});
+
+function applyLang(){document.documentElement.lang=lang;document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t(e.dataset.t));
+ $('expand').textContent=t(expanded?'collapse':'expand');$('parts').dataset.empty=t('partsEmpty');
+ $('lang').textContent=lang==='fr'?'EN':'FR';[...$('presets').children].forEach((b,i)=>b.textContent=t('presets')[i]);
+ document.querySelectorAll('#parts .solo').forEach(b=>b.textContent=t('solo'));$('help').innerHTML=t('help');if(!model)say(t('start'))}
+$('lang').onclick=()=>{lang=lang==='fr'?'en':'fr';try{localStorage.setItem('lang',lang)}catch(e){}applyLang()};
+
+// ---------- JPEG export
+$('save').onclick=async()=>{const sm=$('savemsg');
+ const r=stage.clientWidth/stage.clientHeight,W=r>=1?3000:Math.round(3000*r),H=r>=1?Math.round(3000/r):3000;
+ const pr=renderer.getPixelRatio();renderer.setPixelRatio(1);renderer.setSize(W,H,false);renderer.render(scene,cam);
+ const blob=await new Promise(res=>renderer.domElement.toBlob(res,'image/jpeg',.95));
+ renderer.setPixelRatio(pr);size();
+ const name=($('name').textContent.replace('—','')||t('view')).replace(/\.[^.]+$/,'').replace(/[^\w-]+/g,'_')+'_POV.jpg';
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);sm.textContent=t('saved')+name};
+
+// ---------- loaders
+function loadStep(buf,ext){return new Promise((res,rej)=>{const w=new Worker('worker.js');
+ w.onmessage=e=>{const d=e.data;if(d.status){say(t(d.status));return}w.terminate();if(d.error){rej(new Error(d.error));return}
+  const meshes=d.meshes.map(m=>{if(!m.pos.length||m.pos.some(v=>!Number.isFinite(v)))return null;const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(m.pos,3));
+   if(m.idx)geo.setIndex(new THREE.BufferAttribute(m.idx,1));const me=new THREE.Mesh(geo,mat);me.name=m.name;return me});
+  if(!meshes.some(Boolean)){rej(new Error(t('empty')));return}
+  const g=new THREE.Group();meshes.forEach(m=>m&&g.add(m));g.scale.setScalar(.001);g.rotation.x=-Math.PI/2;const wr=new THREE.Group();wr.add(g);
+  const conv=n=>({name:n.name||'',meshes:(n.meshes||[]).map(i=>meshes[i]).filter(Boolean),children:(n.children||[]).map(conv).filter(c=>allMeshes(c).length)});
+  res({obj:wr,tree:d.root?conv(d.root):null})};
+ w.onerror=e=>{w.terminate();rej(new Error(e.message||'worker error'))};
+ w.postMessage({buf,iges:ext==='igs'||ext==='iges'},[buf])})}
+$('load').onclick=()=>$('file').click();
+$('file').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)openFile(f)};
+const STEP_LIMIT=100*1024*1024;
+function confirmBig(file){return new Promise(res=>{$('bigText').textContent=t('bigSize').replace('{mb}',Math.round(file.size/1048576));$('big').hidden=false;
+ $('bigGo').onclick=()=>{$('big').hidden=true;res(true)};$('bigNo').onclick=()=>{$('big').hidden=true;res(false)}})}
+async function openFile(file){const ext=file.name.split('.').pop().toLowerCase();
+ if(['stp','step','igs','iges'].includes(ext)&&file.size>STEP_LIMIT&&!(await confirmBig(file)))return;
+ say(t('opening')+file.name+'…');await new Promise(r=>setTimeout(r,60));
+ try{const buf=await file.arrayBuffer();let obj,tree=null;
+  if(['stp','step','igs','iges'].includes(ext)){({obj,tree}=await loadStep(buf,ext))}
+  else if(ext==='glb'||ext==='gltf'){obj=await new Promise((res,rej)=>new GLTFLoader().parse(buf,'',g=>res(g.scene),rej))}
+  else if(ext==='obj'){obj=new OBJLoader().parse(new TextDecoder().decode(buf))}
+  else if(ext==='stl'){const m=new THREE.Mesh(new STLLoader().parse(buf),mat);m.name=file.name;m.rotation.x=-Math.PI/2;obj=new THREE.Group();obj.add(m)}
+  else throw new Error(t('unsup'));
+  if(!['stp','step','igs','iges'].includes(ext)){const s=new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).length();if(s>5)obj.scale.multiplyScalar(.001)}
+  setModel(obj,file.name,tree);say('')}
+ catch(err){const m=String(err.message||err);say(t('fail')+(/memory|allocation|abort/i.test(m)||(['stp','step','igs','iges'].includes(ext)&&file.size>STEP_LIMIT)?t('oom'):m))}}
+stage.addEventListener('dragover',e=>e.preventDefault());
+stage.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)openFile(f)});
+
+applyLang();
+addEventListener('resize',size);size();
+new THREE.Box3(new THREE.Vector3(-.1,0,-.1),new THREE.Vector3(.1,.3,.1)).getBoundingSphere(sphere);place(lastDir);
+(function loop(){requestAnimationFrame(loop);ctr.update();renderer.render(scene,cam)})();
+</script></body></html>
