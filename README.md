@@ -24,6 +24,7 @@ STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 6. **Vue éclatée** : le curseur écarte les pièces du centre du produit. **Tous les éléments** éclate tout, **Éléments choisis** n'éclate que les pièces ou groupes marqués ✦ dans la liste.
 7. **Choisir le rendu** : **Rendu** ombré (gris neutre ou couleurs du fichier), carte de **Profondeur** (blanc = proche) ou dessin au **Trait**. Fond gris, blanc ou transparent.
 8. **Enregistrer l'image** : ce qui est dans le cadre, 2000, 3000 ou 4000 px sur le côté long. JPEG, ou PNG pour le fond transparent, la profondeur et les traits.
+9. **Mouvements de caméra** (pour la vidéo IA) : 10 mouvements prêts (orbites, approche, recul, montée, du dessus à 3/4, travelling latéral, contre-plongée, arc descendant), définis par rapport au produit : 0° = la vue de face, distance 1 = produit entier dans le cadre. **Aperçu** joue le mouvement, les boutons 1, 2, 3 montrent chaque image clé, **Exporter les images** télécharge les images clés (avec le format, le type d'image et la taille choisis) et un fichier `_seedance.txt` : un clip première image → dernière image par paire d'images, avec le prompt de caméra en anglais. Pour l'approche et le recul, cliquez d'abord la pièce à viser sur le modèle.
 
 L'onglet **Mode d'emploi** de la page reprend ces étapes. L'interface existe en français, en anglais et en italien.
 
@@ -33,7 +34,7 @@ Les deux bibliothèques utilisées autorisent l'usage commercial : three.js (lic
 ## Technique
 Aucune étape de compilation : HTML, CSS et modules JavaScript simples, avec toutes les dépendances dans le dépôt (la page fonctionne sans serveur externe).
 - `index.html`, `css/style.css` : la page.
-- `js/viewer.js` : scène, caméra, cadrage, types de rendu et export de l'image. `js/model.js` : matériaux, liste des éléments, vue éclatée, sélection. `js/loaders.js` et `js/step-worker.js` : lecture des fichiers. `js/i18n.js` : textes. `js/main.js` : liaison avec l'interface.
+- `js/viewer.js` : scène, caméra, cadrage, types de rendu et export de l'image. `js/model.js` : matériaux, liste des éléments, vue éclatée, sélection. `js/loaders.js` et `js/step-worker.js` : lecture des fichiers. `js/i18n.js` : textes. `js/moves.js` : mouvements de caméra et fichier des prompts. `js/main.js` : liaison avec l'interface.
 - `vendor/three` : [three.js](https://threejs.org) 0.170 pour l'affichage.
 - `vendor/occt` : [occt-import-js](https://github.com/kovacsv/occt-import-js) (OpenCascade compilé en WebAssembly) pour lire les STEP et IGES, dans un Web Worker.
 
