@@ -164,7 +164,7 @@ $('floor').onchange = e => { view.floor = e.target.checked; lookChanged(); };
 
 // ---------- camera moves for AI video: keyframes exported as first / last frames, with the prompts
 let move = MOVES[0];
-seg('moves', MOVES.map((m, i) => ({ v: i, key: 'mv_' + m.id })), 0, i => { stopMove(); move = MOVES[i]; drawMove(); toKey(0); });
+seg('moves', MOVES.map((m, i) => ({ v: i, key: 'mv_' + m.id })), 0, i => { stopMove(); move = MOVES[i]; drawMove(); playMove(); });
 function drawMove() {
   const n = move.keys.length, keys = $('moveKeys'); keys.innerHTML = '';
   move.keys.forEach((k, i) => { const b = document.createElement('button'); b.textContent = i + 1; b.onclick = () => toKey(i); keys.append(b); });
@@ -175,11 +175,11 @@ function drawMove() {
 }
 function toKey(i) { stopMove(); clearPreset(); mark($('moveKeys'), $('moveKeys').children[i]); if (model) goToKey(move, i); }
 function stopMove() { stop(); $('movePlay').textContent = t('movePlay'); }
-$('movePlay').onclick = () => {
-  if (playing()) { stopMove(); return; }
+function playMove() {
   if (!model) return;
   clearPreset(); mark($('moveKeys'), null); $('movePlay').textContent = t('moveStop'); play(move, stopMove);
-};
+}
+$('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
 $('moveExport').onclick = async () => {
