@@ -7,6 +7,7 @@ const greyMat = new THREE.MeshStandardMaterial({ color: 0xbdbdbb, roughness: .6,
 const hiMat = new THREE.MeshStandardMaterial({ color: 0xe8a030, emissive: 0x5a3000, roughness: .5, side: THREE.DoubleSide });
 
 export let model = null;
+export let picked = null; // last part clicked on the model (detail aimed by the camera moves)
 let rootNode = null, homeQ = null, homeP = null;
 const rows = [], meshRow = new Map(), lit = new Set();
 
@@ -47,7 +48,7 @@ export function setModel(obj, tree) {
   holder.add(obj);
   try { normalize(); } catch (e) { holder.remove(obj); dispose(obj); if (old) { holder.add(old); normalize(); } throw e; }
   if (old) dispose(old);
-  model = obj; lit.clear(); applyMaterials();
+  model = obj; picked = null; lit.clear(); applyMaterials();
   buildParts(tree || treeFromObject(obj)); saveHome(); place(view.dir);
 }
 
@@ -168,6 +169,7 @@ export function pick(clientX, clientY) {
   const hit = ray.intersectObject(model, true).find(h => h.object.isMesh && h.object.visible), row = hit && meshRow.get(hit.object);
   document.querySelectorAll('#parts .line.picked').forEach(l => l.classList.remove('picked'));
   if (!row) return false;
+  picked = hit.object;
   for (let p = row.el.parentElement; p && p.id !== 'parts'; p = p.parentElement) { p.classList.remove('closed'); p.hidden = false; }
   row.el.hidden = false; row.line.classList.add('picked'); row.line.scrollIntoView({ block: 'nearest' });
   const ms = [...lit]; highlight(ms, false); clearTimeout(flash);

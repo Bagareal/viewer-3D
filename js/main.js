@@ -1,9 +1,10 @@
 // Wires the interface to the viewer.
 import { THREE, view, renderer, ctr, sphere, place, resize, setFocal, setRatio, getPose, setPose, refreshLook, snapshot } from './viewer.js';
-import { model, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, spin, resetSpin, pick, relabelParts } from './model.js';
+import { model, picked, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, spin, resetSpin, pick, relabelParts } from './model.js';
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
+import { MOVES, goToKey, play, playing, stop, seedanceText } from './moves.js';
 
 const $ = id => document.getElementById(id), side = $('side');
 let fileName = '', expanded = false, longSide = 3000, axis = 'free';
@@ -136,7 +137,7 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerup', e => {
   drag = null;
-  if (down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && pick(e.clientX, e.clientY)) showTab('tools');
+  if (down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && pick(e.clientX, e.clientY)) { showTab('tools'); drawMove(); }
   down = null;
 });
 cv.addEventListener('pointercancel', () => { drag = down = null; });
@@ -160,6 +161,43 @@ seg('styles', [{ v: 'shaded', key: 'stShaded' }, { v: 'depth', key: 'stDepth' },
 seg('colors', [{ v: false, key: 'colGrey' }, { v: true, key: 'colOrig' }], view.colors, v => { view.colors = v; applyMaterials(); lookChanged(); });
 seg('bgs', [{ v: 'grey', key: 'bgGrey' }, { v: 'white', key: 'bgWhite' }, { v: 'none', key: 'bgNone' }], view.bg, v => { view.bg = v; lookChanged(); });
 $('floor').onchange = e => { view.floor = e.target.checked; lookChanged(); };
+
+// ---------- camera moves for AI video: keyframes exported as first / last frames, with the prompts
+let move = MOVES[0];
+seg('moves', MOVES.map((m, i) => ({ v: i, key: 'mv_' + m.id })), 0, i => { stopMove(); move = MOVES[i]; drawMove(); toKey(0); });
+function drawMove() {
+  const n = move.keys.length, keys = $('moveKeys'); keys.innerHTML = '';
+  move.keys.forEach((k, i) => { const b = document.createElement('button'); b.textContent = i + 1; b.onclick = () => toKey(i); keys.append(b); });
+  $('moveDesc').textContent = t('mvd_' + move.id);
+  $('moveInfo').textContent = t('moveInfo').replace('{n}', n).replace('{c}', n - 1);
+  $('moveDetail').hidden = !move.keys.some(k => k.ty === 'detail');
+  $('moveDetail').textContent = t('moveDetail') + (picked ? picked.name || t('movePart') : t('moveCentre'));
+}
+function toKey(i) { stopMove(); clearPreset(); mark($('moveKeys'), $('moveKeys').children[i]); if (model) goToKey(move, i); }
+function stopMove() { stop(); $('movePlay').textContent = t('movePlay'); }
+$('movePlay').onclick = () => {
+  if (playing()) { stopMove(); return; }
+  if (!model) return;
+  clearPreset(); mark($('moveKeys'), null); $('movePlay').textContent = t('moveStop'); play(move, stopMove);
+};
+renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
+renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
+$('moveExport').onclick = async () => {
+  if (!model) return;
+  stopMove(); $('moveExport').disabled = true;
+  try {
+    const names = [];
+    for (let i = 0; i < move.keys.length; i++) {
+      toKey(i);
+      const { blob } = await snapshot(longSide);
+      const name = `${baseName()}_${move.id}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+      download(blob, name); names.push(name);
+      await new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
+    }
+    download(new Blob([seedanceText(move, names, fileName)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
+    $('moveMsg').textContent = t('moveDone').replace('{n}', names.length);
+  } finally { $('moveExport').disabled = false; }
+};
 
 // ---------- saving the image
 seg('sizes', [2000, 3000, 4000].map(v => ({ v, label: v + ' px' })), longSide, v => { longSide = v; });
@@ -193,7 +231,8 @@ function labels() {
   $('parts').dataset.empty = t('partsEmpty');
   $('help').innerHTML = t('help');
   $('savemsg').textContent = t('saveHint'); $('viewMsg').textContent = '';
-  relabelParts(); drawViews(); relabelCube();
+  $('moveMsg').textContent = t('moveHint');
+  relabelParts(); drawViews(); relabelCube(); drawMove();
 }
 
 // ---------- start

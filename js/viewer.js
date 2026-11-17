@@ -61,7 +61,7 @@ function updateFov() {
   const { h, H } = frameSize();
   cam.fov = 2 * Math.atan(frameTanV() * H / h) * 180 / Math.PI; cam.updateProjectionMatrix();
 }
-function fitDist() {
+export function fitDist() {
   const { w, h } = frameSize(), tv = frameTanV(), th = tv * w / h;
   return sphere.radius * 1.08 / Math.sin(Math.atan(Math.min(tv, th)));
 }
@@ -79,6 +79,8 @@ export function place(dir) {
   updateClip(); ctr.update(); invalidate();
 }
 function updateClip() { cam.near = sphere.radius / 100; cam.far = sphere.radius * 200; cam.updateProjectionMatrix(); }
+// Puts the camera at an exact position, aimed at a point (used by the camera moves).
+export function setCamera(pos, target) { cam.position.copy(pos); ctr.target.copy(target); updateClip(); ctr.update(); invalidate(); }
 // Changing focal length or ratio keeps the product the same size on screen (the camera dollies).
 function keepSize(change) {
   const d = cam.position.distanceTo(ctr.target), { h, H } = frameSize(), old = Math.tan(cam.fov * Math.PI / 360) * h / H;
