@@ -1,4 +1,4 @@
-// Reads a file chosen by the user and returns {obj, tree} ready for the viewer. Nothing leaves the browser.
+// Reads a file chosen by the user and returns {obj, tree, groups} ready for the viewer. Nothing leaves the browser.
 import { THREE } from './viewer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
@@ -42,13 +42,28 @@ function loadCad(buf, ext, status) {
   });
 }
 
+// glTF stores a part with several colours as one mesh with several primitives, and three.js turns
+// each primitive into its own Mesh. Gather them again (same glTF mesh, same parent), so the part is
+// listed and exploded as one piece. GLB files from STEP2GLB before 1.2 even had one primitive per face.
+function partGroups(gltf) {
+  const byParent = new Map();
+  gltf.scene.traverse(o => {
+    const a = o.isMesh && o.parent && gltf.parser.associations.get(o);
+    if (!a || a.primitives === undefined) return;
+    let m = byParent.get(o.parent); if (!m) byParent.set(o.parent, m = new Map());
+    m.has(a.meshes) ? m.get(a.meshes).push(o) : m.set(a.meshes, [o]);
+  });
+  return [...byParent.values()].flatMap(m => [...m.values()]).filter(g => g.length > 1);
+}
+
 export async function loadFile(file, status) {
   const ext = extOf(file.name), buf = await file.arrayBuffer();
   if (isCad(ext)) return loadCad(buf, ext, status);
   if (ext === 'glb' || ext === 'gltf') {
     if (ext === 'gltf' && /"uri"\s*:\s*"(?!data:)/.test(new TextDecoder().decode(buf))) throw new Error(t('gltfExt'));
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-    return { obj: await new Promise((res, rej) => loader.parse(buf, '', g => res(g.scene), rej)), tree: null };
+    const gltf = await new Promise((res, rej) => loader.parse(buf, '', res, rej));
+    return { obj: gltf.scene, tree: null, groups: partGroups(gltf) };
   }
   if (ext === 'obj') return { obj: new OBJLoader().parse(new TextDecoder().decode(buf)), tree: null };
   if (ext === 'stl') {

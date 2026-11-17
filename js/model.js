@@ -36,7 +36,7 @@ function normalize() {
 }
 const saveHome = () => { homeQ = model.quaternion.clone(); homeP = model.position.clone(); };
 
-export function setModel(obj, tree) {
+export function setModel(obj, tree, groups) {
   obj.traverse(o => {
     if (!o.isMesh) return;
     if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
@@ -49,14 +49,16 @@ export function setModel(obj, tree) {
   try { normalize(); } catch (e) { holder.remove(obj); dispose(obj); if (old) { holder.add(old); normalize(); } throw e; }
   if (old) dispose(old);
   model = obj; picked = null; lit.clear(); applyMaterials();
-  buildParts(tree || treeFromObject(obj)); saveHome(); place(view.dir);
+  buildParts(tree || treeFromObject(obj, groups)); saveHome(); place(view.dir);
 }
 
-// ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]})
-function treeFromObject(obj) {
+// ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]}; a node's own meshes are one part)
+// groups: lists of sibling meshes that form one part (see partGroups in loaders.js).
+function treeFromObject(obj, groups = []) {
+  const own = new Map(groups.map(g => [g[0].parent, g]));
   const walk = o => {
-    const n = { name: o.name || '', meshes: o.isMesh ? [o] : [], children: [] };
-    o.children.forEach(c => { const k = walk(c); if (k.meshes.length || k.children.length) n.children.push(k); });
+    const g = own.get(o), n = { name: o.name || '', meshes: g ? [...g] : o.isMesh ? [o] : [], children: [] };
+    o.children.forEach(c => { if (g && g.includes(c)) return; const k = walk(c); if (k.meshes.length || k.children.length) n.children.push(k); });
     return n;
   };
   const r = walk(obj);
@@ -64,6 +66,7 @@ function treeFromObject(obj) {
   return r;
 }
 const allMeshes = n => n.all ??= [...n.meshes, ...n.children.flatMap(allMeshes)];
+const countParts = n => n.nParts ??= (n.meshes.length ? 1 : 0) + n.children.reduce((s, c) => s + countParts(c), 0);
 
 function refreshChecks() {
   rows.forEach(({ node, cb }) => { const ms = allMeshes(node), v = ms.filter(m => m.visible).length; cb.checked = v > 0; cb.indeterminate = v > 0 && v < ms.length; });
@@ -80,7 +83,7 @@ function buildParts(root) {
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
     const nm = document.createElement('span'); nm.className = 'nm';
     const name = node.name || node.meshes[0]?.name || '—';
-    nm.textContent = name + (kids ? ` (${allMeshes(node).length})` : ''); nm.title = nm.textContent;
+    nm.textContent = name + (kids ? ` (${countParts(node)})` : ''); nm.title = nm.textContent;
     const so = document.createElement('button'); so.className = 'solo'; so.textContent = t('solo');
     const ex = document.createElement('button'); ex.className = 'ex'; ex.textContent = '✦'; ex.title = t('exMark');
     line.append(tw, cb, nm, so, ex); el.append(line);
@@ -101,7 +104,7 @@ function buildParts(root) {
   let top = root.meshes.length ? [root] : root.children;
   if (top.length === 1 && !top[0].meshes.length) top = top[0].children;
   top.forEach(n => box.append(mkNode(n, 0)));
-  $('partCount').textContent = allMeshes(root).length;
+  $('partCount').textContent = countParts(root);
 }
 export function relabelParts() { rows.forEach(r => { r.so.textContent = t('solo'); r.ex.title = t('exMark'); }); }
 export function showAll() { if (rootNode) { allMeshes(rootNode).forEach(m => m.visible = true); refreshChecks(); } }
@@ -120,19 +123,35 @@ export function filterParts(q) {
 }
 
 // ---------- exploded view
-const expSet = new Set(); let expMode = 'all', expBase = new Map();
-function initExplode() { expBase = new Map(); if (!model) return; model.traverse(o => { if (o.isMesh) expBase.set(o, o.position.clone()); }); $('exp').value = 0; $('expVal').textContent = '0%'; }
+// Whole parts move: all meshes of a part (one per colour) get the same offset, from the part's centre.
+const expSet = new Set(); let expMode = 'all', expBase = new Map(), expUnits = [];
+function initExplode() {
+  expBase = new Map(); expUnits = [];
+  if (!model) return;
+  const seen = new Set();
+  const add = ms => {
+    const byParent = new Map();
+    ms.forEach(m => { if (seen.has(m)) return; seen.add(m); const l = byParent.get(m.parent); l ? l.push(m) : byParent.set(m.parent, [m]); });
+    byParent.forEach(l => expUnits.push(l));
+  };
+  const visit = n => { if (n.meshes.length) add(n.meshes); n.children.forEach(visit); };
+  if (rootNode) visit(rootNode);
+  model.traverse(o => { if (o.isMesh) { expBase.set(o, o.position.clone()); if (!seen.has(o)) add([o]); } });
+  $('exp').value = 0; $('expVal').textContent = '0%';
+}
 function refreshEx() { rows.forEach(({ node, ex }) => { const ms = allMeshes(node); ex.classList.toggle('on', ms.length > 0 && ms.every(m => expSet.has(m))); }); }
+const _ub = new THREE.Box3(), _mb = new THREE.Box3(), _off = new THREE.Vector3();
 export function applyExplode() {
   if (!model) return;
   const f = $('exp').value / 100 * 1.5; $('expVal').textContent = $('exp').value + '%';
   expBase.forEach((p, m) => m.position.copy(p)); model.updateMatrixWorld(true); invalidate();
   if (f === 0) return;
   const C = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-  expBase.forEach((p, m) => {
-    if (expMode === 'sel' && !expSet.has(m)) return;
-    const c = m.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
-    const target = m.parent.localToWorld(p.clone()).add(c.sub(C).multiplyScalar(f)); m.position.copy(m.parent.worldToLocal(target));
+  expUnits.forEach(ms => {
+    if (expMode === 'sel' && !ms.some(m => expSet.has(m))) return;
+    _ub.makeEmpty(); ms.forEach(m => _ub.union(_mb.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld)));
+    _ub.getCenter(_off).sub(C).multiplyScalar(f);
+    ms.forEach(m => { const target = m.parent.localToWorld(expBase.get(m).clone()).add(_off); m.position.copy(m.parent.worldToLocal(target)); });
   });
   model.updateMatrixWorld(true);
 }
@@ -173,6 +192,7 @@ export function pick(clientX, clientY) {
   for (let p = row.el.parentElement; p && p.id !== 'parts'; p = p.parentElement) { p.classList.remove('closed'); p.hidden = false; }
   row.el.hidden = false; row.line.classList.add('picked'); row.line.scrollIntoView({ block: 'nearest' });
   const ms = [...lit]; highlight(ms, false); clearTimeout(flash);
-  highlight([hit.object], true); flash = setTimeout(() => highlight([hit.object], false), 900);
+  const part = row.node.meshes.includes(hit.object) ? row.node.meshes : [hit.object];
+  highlight(part, true); flash = setTimeout(() => highlight(part, false), 900);
   return true;
 }

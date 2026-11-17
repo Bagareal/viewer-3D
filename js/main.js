@@ -52,8 +52,8 @@ async function openFile(file) {
   overlay('busy', t('opening') + file.name + '…');
   await new Promise(r => setTimeout(r, 60)); // lets the message paint before heavy work
   try {
-    const { obj, tree } = await loadFile(file, s => overlay('busy', s));
-    setModel(obj, tree);
+    const { obj, tree, groups } = await loadFile(file, s => overlay('busy', s));
+    setModel(obj, tree, groups);
     fileName = file.name; side.classList.remove('nomodel'); expanded = false;
     labels(); overlay();
   } catch (err) {
