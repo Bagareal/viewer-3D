@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -86,9 +86,24 @@
         <div class="field"><div class="seg grid" id="moves"></div><p class="hint" id="moveDesc"></p></div>
         <div class="field"><h2 data-t="moveKeys"></h2><div class="seg" id="moveKeys"></div>
           <p class="hint" id="moveInfo"></p><p class="hint" id="moveDetail"></p></div>
-        <div class="row nowrap between"><h2 data-t="videoSize"></h2><div class="seg" id="videoSizes"></div></div>
-        <div class="row nowrap"><button id="movePlay" data-t="movePlay"></button><button id="moveExport" class="primary wide" data-t="moveExport"></button></div>
-        <p class="hint" id="moveMsg"></p>
+        <button id="movePlay" class="wide" data-t="movePlay"></button>
+      </div>
+      <h3 class="sub" data-t="sExport"></h3>
+      <div class="body">
+        <div class="field">
+          <div class="row nowrap between"><h2 data-t="size"></h2><div class="seg" id="sizes"></div></div>
+          <button id="save" class="wide" data-t="save"></button>
+          <p class="hint" id="savemsg"></p>
+        </div>
+        <div class="field">
+          <div class="row nowrap between"><h2 data-t="videoSize"></h2><div class="seg" id="videoSizes"></div></div>
+          <div class="exports">
+            <button id="expFrames"><b data-t="xFrames"></b><span data-t="xFramesSub"></span></button>
+            <button id="expVideo"><b data-t="xVideo"></b><span data-t="xVideoSub"></span></button>
+            <button id="expEvery" class="primary"><b data-t="xAll"></b><span data-t="xAllSub"></span></button>
+          </div>
+          <p class="hint" id="moveMsg"></p>
+        </div>
       </div>
     </div>
 
@@ -130,11 +145,6 @@
 
     <div class="pane" id="p-help" hidden><div id="help"></div></div>
 
-    <footer class="needs">
-      <div class="row nowrap between"><h2 data-t="size"></h2><div class="seg" id="sizes"></div></div>
-      <button id="save" class="primary wide" data-t="save"></button>
-      <p class="hint" id="savemsg"></p>
-    </footer>
   </div>
 
   <nav id="rail">
@@ -145,7 +155,7 @@
     <button class="needs" data-panel="look" data-title="sLook"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" class="fill"/></svg><span data-t="rLook"></span></button>
     <span class="grow"></span>
     <button data-panel="help" data-title="tabHelp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6v.6 M12 17h.01"/></svg><span data-t="rHelp"></span></button>
-    <span id="version" title="Viewer 3D">v4</span>
+    <span id="version" title="Viewer 3D">v5</span>
   </nav>
 </aside>
 

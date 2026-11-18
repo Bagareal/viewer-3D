@@ -186,15 +186,16 @@ function playMove() {
 $('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
-// One button: the keyframes, the reference video of the whole move, and the prompt file.
+// Three buttons: the keyframes (with the prompt file), the reference video alone, or everything.
 seg('videoSizes', VIDEO_SIZES, videoSide, v => { videoSide = v; });
 const gap = () => new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
-$('moveExport').onclick = async () => {
+const exportButtons = ['expFrames', 'expVideo', 'expEvery'];
+async function exportMove(wantFrames, wantVideo) {
   if (!model) return;
-  stopMove(); $('moveExport').disabled = true;
+  stopMove(); exportButtons.forEach(id => $(id).disabled = true);
   try {
     const names = [];
-    for (let i = 0; i < move.keys.length; i++) {
+    if (wantFrames) for (let i = 0; i < move.keys.length; i++) {
       toKey(i);
       const { blob } = await snapshot(longSide);
       const name = `${baseName()}_${move.id}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
@@ -202,7 +203,7 @@ $('moveExport').onclick = async () => {
       await gap();
     }
     let video = null;
-    if (videoSupported()) {
+    if (wantVideo && videoSupported()) {
       const msg = p => { $('moveMsg').textContent = t('moveVideo').replace('{p}', Math.round(p * 100)); };
       msg(0);
       try {
@@ -210,10 +211,14 @@ $('moveExport').onclick = async () => {
         if (r) { video = { ...r, name: `${baseName()}_${move.id}_video.mp4` }; download(r.blob, video.name); await gap(); }
       } catch (e) { console.error(e); }
     }
-    download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
-    $('moveMsg').textContent = t(video ? 'moveDone' : 'moveNoVideo').replace('{n}', names.length);
-  } finally { $('moveExport').disabled = false; }
-};
+    if (wantFrames) download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
+    const key = !wantFrames ? (video ? 'xVideoDone' : 'xNoVideo') : !wantVideo ? 'xFramesDone' : video ? 'moveDone' : 'moveNoVideo';
+    $('moveMsg').textContent = t(key).replace('{n}', names.length);
+  } finally { exportButtons.forEach(id => $(id).disabled = false); }
+}
+$('expFrames').onclick = () => exportMove(true, false);
+$('expVideo').onclick = () => exportMove(false, true);
+$('expEvery').onclick = () => exportMove(true, true);
 
 // ---------- saving the image
 seg('sizes', [2000, 3000, 4000].map(v => ({ v, label: v + ' px' })), longSide, v => { longSide = v; });

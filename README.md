@@ -1,41 +1,39 @@
 # Viewer 3D
 
-[![English](https://img.shields.io/badge/lang-English-blue)](README.en.md)
+A 3D viewer that runs entirely in the browser: load a 3D file, pick the point of view and save an image of that view. Handy as a position reference for AI image generation.
 
-Visualiseur 3D qui fonctionne entièrement dans le navigateur : on charge un fichier 3D, on choisit le point de vue et on enregistre une image de la vue. Pratique comme référence de position pour la génération d'images par IA.
+**👉 Open the tool: https://bagareal.github.io/viewer-3D/**
 
-**👉 Ouvrir l'outil : https://bagareal.github.io/viewer-3D/**
+## Privacy
+Files are read and converted locally, by your browser. Nothing is sent to GitHub or to any server, and the file is gone when you close the tab. Only the page's code is public.
 
-## Confidentialité
-Les fichiers sont lus et convertis localement, par votre navigateur. Rien n'est envoyé sur GitHub ni sur aucun serveur, et le fichier disparaît à la fermeture de l'onglet. Seul le code de la page est public.
-
-## Formats acceptés
+## Supported formats
 STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 
-**STEP : jusqu'à ~100 Mo environ.** Au-delà, le navigateur manque de mémoire pour lire le fichier (la page prévient avant d'essayer). Convertissez d'abord le STEP en **GLB**, par exemple avec [STEP2GLB](https://github.com/Bagareal/step2glb) (portable, sans installation), en gardant les pièces séparées : le GLB s'ouvre tout de suite, même lourd, et garde la liste des éléments et la vue éclatée.
+**STEP: up to about 100 MB.** Above that the browser runs out of memory to read the file (the page warns you before trying). First convert the STEP to **GLB**, for example with [STEP2GLB](https://github.com/Bagareal/step2glb) (portable, no installation), keeping the parts separate: the GLB opens instantly, even when heavy, and keeps the parts list and the exploded view.
 
-## Utilisation
-1. **Charger** un fichier (bouton ou glisser-déposer dans la fenêtre).
-2. **Se déplacer** : clic gauche maintenu pour tourner, molette pour zoomer, clic droit (ou molette enfoncée) maintenu pour déplacer la vue. Un clic sur une pièce du modèle la retrouve dans la liste.
-3. **Cadrer** : vues rapides (face, 3/4, profil, plongée…), focales de 24 à 105 mm, et un **format d'image** (libre, 1:1, 4:5, 3:2, 16:9, 9:16) affiché comme un cadre à l'écran. Les **vues enregistrées** gardent un cadrage pour le réappliquer à d'autres produits ; elles s'exportent et s'importent sous forme de fichier.
-4. **Positionner le produit** : quarts de tour pour redresser un produit qui arrive couché, ou glisser pour le faire tourner sur un seul axe (X, Y ou Z, avec Réinitialiser). Les axes suivent la convention CAO : Z est vertical.
-   Le **cube d'orientation** en haut à droite tourne avec la vue : cliquez une face, une arête ou un coin pour voir le produit de ce côté.
-5. **Choisir les éléments** : la liste **Éléments** reprend l'arborescence du fichier, avec une recherche. Décocher pour masquer une pièce, **Seul** pour l'isoler, **Tout afficher** pour revenir ; au survol d'un nom, la pièce s'allume en orange.
-6. **Vue éclatée** : comme un éclaté technique. La plus grande pièce (le corps) reste en place ; chaque autre pièce sort selon l'un des six axes du produit, du côté où elle dépasse le plus du corps (une pièce du dessous descend, une poignée sur le dessus monte). Les pièces qui sortent du même côté gardent leur ordre, les plus extérieures allant plus loin, sans se traverser. Les directions suivent le produit, même tourné. Les pièces tout à fait à l'intérieur du corps en sortent par le côté le plus proche, en traversant sa paroi. **Tous les éléments** éclate tout, **Éléments choisis** n'éclate que les pièces ou groupes marqués ✦ dans la liste. Une pièce bouge toujours d'un seul bloc, même quand le GLB la stocke en plusieurs morceaux (un par couleur, ou un par face dans les fichiers créés par STEP2GLB avant la 1.2).
-7. **Choisir le rendu** : **Rendu** ombré (gris neutre ou couleurs du fichier), carte de **Profondeur** (blanc = proche) ou dessin au **Trait**. Fond gris, blanc ou transparent.
-8. **Enregistrer l'image** : ce qui est dans le cadre, 2000, 3000 ou 4000 px sur le côté long. JPEG, ou PNG pour le fond transparent, la profondeur et les traits.
-9. **Mouvements de caméra** (pour la vidéo IA) : 10 mouvements prêts (orbites, approche, recul, montée, du dessus à 3/4, travelling latéral, contre-plongée, arc descendant), définis par rapport au produit : 0° = la vue de face, distance 1 = produit entier dans le cadre. Choisir un mouvement le joue tout de suite (**Aperçu** pour le revoir), les boutons 1, 2, 3 montrent chaque image clé, **Exporter images et vidéo** télécharge les images clés (avec le format, le type d'image et la taille choisis), une vidéo MP4 de référence de tout le mouvement (1080p ou 4K, 5 s par clip, 30 images/s, calculée image par image donc toujours fluide ; fond plein, le MP4 n'ayant pas de transparence ; Chrome, Edge ou Brave) et un fichier `_seedance.txt` : un clip première image → dernière image par paire d'images, avec le prompt de caméra en anglais. Pour l'approche et le recul, cliquez d'abord la pièce à viser sur le modèle.
+## How to use
+1. **Load** a file (button or drag and drop onto the window).
+2. **Move around**: hold left click to orbit, scroll to zoom, hold right click (or the wheel button) to pan. Click a part on the model to find it in the list.
+3. **Frame**: quick views (front, 3/4, side, high angle…), focal lengths from 24 to 105 mm, and an **image format** (free, 1:1, 4:5, 3:2, 16:9, 9:16) shown as a frame on screen. **Saved views** keep a framing so you can apply it to other products; they can be exported and imported as a file.
+4. **Position the product**: quarter turns to straighten a product that comes in lying down, or drag to turn it on a single axis (X, Y or Z, with Reset). Axes follow the CAD convention: Z is vertical.
+   The **orientation cube** at the top right turns with the view: click a face, an edge or a corner to look at the product from that side.
+5. **Pick the parts**: the **Parts** list shows the file's tree, with a search box. Untick to hide a part, **Solo** to isolate it, **Show all** to go back; hovering a name lights the part up in orange.
+6. **Exploded view**: like a technical exploded drawing. The largest part (the body) stays; every other part leaves along one of the product's six axes, on the side it sticks out of the body the most (a part underneath goes down, a handle on top goes up). Parts leaving on the same side keep their order, the outer ones going further, without going through each other. The directions follow the product, even turned. Parts fully inside the body leave by the nearest side, through its wall. **All parts** explodes everything, **Chosen parts** only the parts or groups marked ✦ in the list. A part always moves as one piece, even when the GLB stores it in several pieces (one per colour, or one per face in files made by STEP2GLB before 1.2).
+7. **Choose the look**: shaded **Render** (neutral grey or the file's colours), **Depth** map (white = near) or **Lines** drawing. Grey, white or transparent background.
+8. **Save the image** (Camera panel, under Export): what is inside the frame, 2000, 3000 or 4000 px on the long side. JPEG, or PNG for transparent background, depth and lines.
+9. **Camera moves** (for AI video): 10 ready-made moves (orbits, push in, pull back, crane up, top to 3/4, side tracking, low hero, descending arc), defined relative to the product: 0° = the front view, distance 1 = whole product in the frame. Picking a move plays it at once (**Preview** to play it again), buttons 1, 2, 3 show each keyframe. Under **Export**, three buttons: **Frames** downloads the keyframes (with the chosen format, image type and size) and the prompt file, **Video** only the MP4 reference video, **Everything** both. The MP4 covers the whole move (1080p or 4K, 5 s per clip, 30 fps, rendered frame by frame so it is always smooth; solid background, as MP4 has no transparency; Chrome, Edge or Brave). The `_seedance.txt` prompt file has one first-frame → last-frame clip per pair of frames, with the camera prompt in English. For push in and pull back, first click the part to aim at on the model.
 
-Le bouton **Aide** (?) en bas de la barre d'icônes reprend ces étapes. L'interface existe en français, en anglais et en italien.
+The **Help** (?) button at the bottom of the icon bar repeats these steps. The interface opens in English and is also available in French and Italian (the last language picked is remembered).
 
-## Licences et usage commercial
-Les deux bibliothèques utilisées autorisent l'usage commercial : three.js (licence MIT) et occt-import-js / OpenCascade (licence LGPL-2.1, utilisées sans modification). Leurs textes de licence sont dans `vendor/`. Les images enregistrées avec l'outil ne sont pas concernées par ces licences.
+## Licenses and commercial use
+Both libraries allow commercial use: three.js (MIT license) and occt-import-js / OpenCascade (LGPL-2.1, used unmodified). Their license texts are included in `vendor/`. Images saved with the tool are not covered by these licenses.
 
-## Technique
-Aucune étape de compilation : HTML, CSS et modules JavaScript simples, avec toutes les dépendances dans le dépôt (la page fonctionne sans serveur externe).
-- `index.html`, `css/style.css` : la page.
-- `js/viewer.js` : scène, caméra, cadrage, types de rendu et export de l'image. `js/model.js` : matériaux, liste des éléments, vue éclatée, sélection. `js/loaders.js` et `js/step-worker.js` : lecture des fichiers. `js/i18n.js` : textes. `js/moves.js` : mouvements de caméra et fichier des prompts. `js/main.js` : liaison avec l'interface.
-- `vendor/three` : [three.js](https://threejs.org) 0.170 pour l'affichage.
-- `vendor/occt` : [occt-import-js](https://github.com/kovacsv/occt-import-js) (OpenCascade compilé en WebAssembly) pour lire les STEP et IGES, dans un Web Worker.
+## Under the hood
+No build step: plain HTML, CSS and JavaScript modules, with every dependency stored in the repository (the page works without any external server).
+- `index.html`, `css/style.css`: the page.
+- `js/viewer.js`: scene, camera, framing, render styles and image export. `js/model.js`: materials, parts list, exploded view, picking. `js/loaders.js` and `js/step-worker.js`: file reading. `js/i18n.js`: texts. `js/moves.js`: camera moves and the prompt file. `js/main.js`: interface wiring.
+- `vendor/three`: [three.js](https://threejs.org) 0.170 for display.
+- `vendor/occt`: [occt-import-js](https://github.com/kovacsv/occt-import-js) (OpenCascade compiled to WebAssembly) to read STEP and IGES files, in a Web Worker.
 
-Pour le lancer en local, servez le dossier avec un serveur statique, par exemple `python -m http.server`, puis ouvrez l'adresse affichée.
+To run it locally, serve the folder with any static server, for example `python -m http.server`, and open the address it prints.
