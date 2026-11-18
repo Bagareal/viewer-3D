@@ -26,7 +26,7 @@ STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 8. **Enregistrer l'image** : ce qui est dans le cadre, 2000, 3000 ou 4000 px sur le côté long. JPEG, ou PNG pour le fond transparent, la profondeur et les traits.
 9. **Mouvements de caméra** (pour la vidéo IA) : 10 mouvements prêts (orbites, approche, recul, montée, du dessus à 3/4, travelling latéral, contre-plongée, arc descendant), définis par rapport au produit : 0° = la vue de face, distance 1 = produit entier dans le cadre. Choisir un mouvement le joue tout de suite (**Aperçu** pour le revoir), les boutons 1, 2, 3 montrent chaque image clé, **Exporter images et vidéo** télécharge les images clés (avec le format, le type d'image et la taille choisis), une vidéo MP4 de référence de tout le mouvement (1080p ou 4K, 5 s par clip, 30 images/s, calculée image par image donc toujours fluide ; fond plein, le MP4 n'ayant pas de transparence ; Chrome, Edge ou Brave) et un fichier `_seedance.txt` : un clip première image → dernière image par paire d'images, avec le prompt de caméra en anglais. Pour l'approche et le recul, cliquez d'abord la pièce à viser sur le modèle.
 
-L'onglet **Mode d'emploi** de la page reprend ces étapes. L'interface existe en français, en anglais et en italien.
+Le bouton **Aide** (?) en bas de la barre d'icônes reprend ces étapes. L'interface existe en français, en anglais et en italien.
 
 ## Licences et usage commercial
 Les deux bibliothèques utilisées autorisent l'usage commercial : three.js (licence MIT) et occt-import-js / OpenCascade (licence LGPL-2.1, utilisées sans modification). Leurs textes de licence sont dans `vendor/`. Les images enregistrées avec l'outil ne sont pas concernées par ces licences.

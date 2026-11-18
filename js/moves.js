@@ -53,10 +53,18 @@ function aim(k) {
   const c = box.getCenter(new THREE.Vector3()), ty = k.ty === 'detail' ? .5 : k.ty;
   c.y = box.min.y + ty * (box.max.y - box.min.y); return c;
 }
-// Keyframes interpolated at s (0 = first keyframe, keys.length - 1 = last).
+// Catmull-Rom: smooth curve through p1 (f = 0) and p2 (f = 1), shaped by the keyframes before and after.
+const cr = (p0, p1, p2, p3, f) => .5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (3 * p1 - p0 - 3 * p2 + p3) * f * f * f);
+// Keyframes joined by a smooth curve at s (0 = first keyframe, keys.length - 1 = last). It passes exactly
+// through every keyframe, without the sudden change of direction and speed at the middle ones that a
+// straight line between keyframes gives. With two keyframes it is the same straight path as before.
 function at(keys, s) {
-  const i = Math.min(Math.floor(s), keys.length - 2), f = s - i, A = K(keys[i]), B = K(keys[i + 1]), l = (a, b) => a + (b - a) * f;
-  return { az: l(A.az, B.az), el: l(A.el, B.el), d: l(A.d, B.d), tx: l(A.tx, B.tx), target: aim(A).lerp(aim(B), f) };
+  const P = keys.map(k => { const c = K(k), t = aim(c); return [c.az, c.el, c.d, c.tx, t.x, t.y, t.z]; });
+  const n = P.length - 1, i = Math.min(Math.floor(s), n - 1), f = s - i;
+  const mirror = (a, b) => a.map((v, j) => 2 * v - b[j]); // imaginary keyframe beyond each end
+  const p0 = P[i - 1] || mirror(P[i], P[i + 1]), p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || mirror(P[i + 1], P[i]);
+  const v = p1.map((_, j) => cr(p0[j], p1[j], p2[j], p3[j], f));
+  return { az: v[0], el: v[1], d: v[2], tx: v[3], target: new THREE.Vector3(v[4], v[5], v[6]) };
 }
 function apply({ az, el, d, tx, target }) {
   const a = az * Math.PI / 180, e = el * Math.PI / 180;

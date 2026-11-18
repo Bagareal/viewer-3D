@@ -3,7 +3,8 @@ export const LANGS = { fr: 'Français', en: 'English', it: 'Italiano' };
 
 const T = {
 fr: {
-  tabTools: 'Outils', tabHelp: 'Mode d’emploi',
+  tabTools: 'Outils', tabHelp: 'Mode d’emploi', sFrameMove: 'Cadrage et mouvements de caméra',
+  rFile: 'Fichier', rFrame: 'Caméra', rProduct: 'Produit', rParts: 'Éléments', rLook: 'Rendu', rHelp: 'Aide',
   sFile: 'Fichier', sFrame: 'Cadrage', sProduct: 'Position du produit', sParts: 'Éléments', sLook: 'Rendu',
   noModel: 'Aucun modèle chargé', load: 'Charger un fichier 3D', loadOther: 'Charger un autre fichier', loadHint: 'STEP, IGES, GLB, OBJ, STL. Le fichier reste sur votre ordinateur.',
   dropTitle: 'Glissez un fichier 3D ici', dropSub: 'STEP · IGES · GLB · OBJ · STL', dropPrivacy: 'Le fichier reste sur votre ordinateur : rien n’est envoyé en ligne.', choose: 'Choisir un fichier', dropNow: 'Déposez le fichier pour l’ouvrir',
@@ -23,7 +24,7 @@ fr: {
   size: 'Côté long', save: 'Enregistrer l’image', saveHint: 'JPEG, ou PNG pour le fond transparent, la profondeur et les traits.', savedMsg: 'Enregistré : ', view: 'vue',
   sMove: 'Mouvements de caméra', moveKeys: 'Images clés', moveInfo: '{n} images à exporter, {c} clip(s) vidéo de la première à la dernière image.', moveDetail: 'Détail visé (cliquez une pièce sur le modèle) : ', moveCentre: 'centre du produit', movePart: 'pièce sans nom',
   movePlay: 'Aperçu', moveStop: 'Arrêter', moveExport: 'Exporter images et vidéo', moveDone: '{n} images, la vidéo et le fichier des prompts téléchargés.', moveVideo: 'Vidéo : {p} %…', videoSize: 'Vidéo', moveNoVideo: '{n} images et le fichier des prompts téléchargés. Ce navigateur ne sait pas créer la vidéo : utilisez Chrome, Edge ou Brave.',
-  moveHint: '0° = vue de face : redressez d’abord le produit (section 3). Choisissez le format avant (ex. 16:9) : la vidéo reprend celui de la première image. Le type d’image de la section 5 vaut pour toutes les images.',
+  moveHint: '0° = vue de face : redressez d’abord le produit (panneau Produit). Choisissez le format avant (ex. 16:9) : la vidéo reprend celui de la première image. Le type d’image du panneau Rendu vaut pour toutes les images.',
   'mv_ORB-S': 'Orbite courte', 'mvd_ORB-S': 'Tourne de 60° devant le produit. Convient à tous les produits.',
   'mv_ORB-34': 'De 3/4 à face', 'mvd_ORB-34': 'De la vue 3/4 droite à la face. Machines à café, robots, fers.',
   'mv_ORB-180': 'Arrière → face', 'mvd_ORB-180': 'Demi-tour de l’arrière à la face, en deux clips de 90°. Produits de plan de travail.',
@@ -48,6 +49,7 @@ fr: {
 <div><h3>Astuce</h3><p>Donnez à l’IA l’image comme référence de position et de perspective, et à côté une vraie photo du produit pour les couleurs et les matières.</p></div>`
 },
 en: {
+  rFile: 'File', rFrame: 'Camera', rProduct: 'Product', rParts: 'Parts', rLook: 'Look', rHelp: 'Help', sFrameMove: 'Framing and camera moves',
   tabTools: 'Tools', tabHelp: 'How to use',
   sFile: 'File', sFrame: 'Framing', sProduct: 'Product position', sParts: 'Parts', sLook: 'Look',
   noModel: 'No model loaded', load: 'Load a 3D file', loadOther: 'Load another file', loadHint: 'STEP, IGES, GLB, OBJ, STL. The file stays on your computer.',
@@ -68,7 +70,7 @@ en: {
   size: 'Long side', save: 'Save the image', saveHint: 'JPEG, or PNG for transparent background, depth and lines.', savedMsg: 'Saved: ', view: 'view',
   sMove: 'Camera moves', moveKeys: 'Keyframes', moveInfo: '{n} frames to export, {c} video clip(s) from first to last frame.', moveDetail: 'Detail aimed at (click a part on the model): ', moveCentre: 'centre of the product', movePart: 'unnamed part',
   movePlay: 'Preview', moveStop: 'Stop', moveExport: 'Export frames and video', moveDone: '{n} frames, the video and the prompt file downloaded.', moveVideo: 'Video: {p}%…', videoSize: 'Video', moveNoVideo: '{n} frames and the prompt file downloaded. This browser cannot make the video: use Chrome, Edge or Brave.',
-  moveHint: '0° = front view: straighten the product first (section 3). Choose the image format first (e.g. 16:9): the video takes the format of the first frame. The image type in section 5 applies to all frames.',
+  moveHint: '0° = front view: straighten the product first (Product panel). Choose the image format first (e.g. 16:9): the video takes the format of the first frame. The image type in the Look panel applies to all frames.',
   'mv_ORB-S': 'Short orbit', 'mvd_ORB-S': 'Turns 60° in front of the product. Works for every product.',
   'mv_ORB-34': '3/4 to front', 'mvd_ORB-34': 'From the 3/4 right view to the front. Coffee machines, food processors, irons.',
   'mv_ORB-180': 'Back → front', 'mvd_ORB-180': 'Half turn from the back to the front, in two 90° clips. Countertop products.',
@@ -93,6 +95,7 @@ en: {
 <div><h3>Tip</h3><p>Give the AI the image as a position and perspective reference, and alongside it a real photo of the product for colours and materials.</p></div>`
 },
 it: {
+  rFile: 'File', rFrame: 'Camera', rProduct: 'Prodotto', rParts: 'Elementi', rLook: 'Aspetto', rHelp: 'Aiuto', sFrameMove: 'Inquadratura e movimenti camera',
   tabTools: 'Strumenti', tabHelp: 'Guida',
   sFile: 'File', sFrame: 'Inquadratura', sProduct: 'Posizione del prodotto', sParts: 'Elementi', sLook: 'Aspetto',
   noModel: 'Nessun modello caricato', load: 'Carica un file 3D', loadOther: 'Carica un altro file', loadHint: 'STEP, IGES, GLB, OBJ, STL. Il file resta sul tuo computer.',
@@ -113,7 +116,7 @@ it: {
   size: 'Lato lungo', save: 'Salva l’immagine', saveHint: 'JPEG, oppure PNG per sfondo trasparente, profondità e linee.', savedMsg: 'Salvato: ', view: 'vista',
   sMove: 'Movimenti camera', moveKeys: 'Fotogrammi chiave', moveInfo: '{n} frame da esportare, {c} clip video dal primo all’ultimo frame.', moveDetail: 'Dettaglio inquadrato (clicca un pezzo sul modello): ', moveCentre: 'centro del prodotto', movePart: 'pezzo senza nome',
   movePlay: 'Anteprima', moveStop: 'Ferma', moveExport: 'Esporta frame e video', moveDone: '{n} frame, il video e il file dei prompt scaricati.', moveVideo: 'Video: {p}%…', videoSize: 'Video', moveNoVideo: '{n} frame e il file dei prompt scaricati. Questo browser non sa creare il video: usa Chrome, Edge o Brave.',
-  moveHint: '0° = vista Fronte: prima raddrizza il prodotto (sezione 3). Scegli prima il formato (es. 16:9): il video prende quello del primo frame. Il tipo di immagine della sezione 5 vale per tutti i frame.',
+  moveHint: '0° = vista Fronte: prima raddrizza il prodotto (pannello Prodotto). Scegli prima il formato (es. 16:9): il video prende quello del primo frame. Il tipo di immagine del pannello Aspetto vale per tutti i frame.',
   'mv_ORB-S': 'Orbita corta', 'mvd_ORB-S': 'Gira di 60° davanti al prodotto. Va bene per tutti i prodotti.',
   'mv_ORB-34': 'Da 3/4 a fronte', 'mvd_ORB-34': 'Dalla vista 3/4 destra al fronte. Macchine da caffè, robot da cucina, ferri da stiro.',
   'mv_ORB-180': 'Retro → fronte', 'mvd_ORB-180': 'Mezzo giro dal retro al fronte, in due clip da 90°. Prodotti da piano di lavoro.',

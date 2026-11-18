@@ -14,12 +14,15 @@ const CODECS = ['avc1.640033', 'avc1.4d0033', 'avc1.42e033'];
 
 export const videoSupported = () => typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined';
 
+// Generous bitrate (about 0.25 bit per pixel per frame: ~60 Mbit/s in 4K, ~15 in 1080p), then lower
+// ones if this computer's encoder refuses it, so the picture stays sharp and even from start to end.
 async function pickConfig(width, height) {
-  const bitrate = width * height > 2.5e6 ? 40e6 : 12e6;
-  for (const codec of CODECS) {
-    const c = { codec, width, height, bitrate, framerate: FPS, avc: { format: 'avc' } };
-    try { if ((await VideoEncoder.isConfigSupported(c)).supported) return c; } catch (e) { /* next one */ }
-  }
+  const ideal = Math.min(80e6, Math.max(12e6, width * height * FPS * .25));
+  for (const bitrate of [ideal, ideal * .6, 12e6])
+    for (const codec of CODECS) {
+      const c = { codec, width, height, bitrate, framerate: FPS, avc: { format: 'avc' } };
+      try { if ((await VideoEncoder.isConfigSupported(c)).supported) return c; } catch (e) { /* next one */ }
+    }
   return null;
 }
 
@@ -54,7 +57,8 @@ export async function recordMove(move, longSide, onProgress) {
       if (failure) throw failure;
       moveAt(move, i / (n - 1));
       const frame = new VideoFrame(drawCapture(), { timestamp: Math.round(i * dt), duration: Math.round(dt) });
-      enc.encode(frame, { keyFrame: i % (2 * FPS) === 0 });
+      // Only the first frame is a key frame: a key frame every 2 s made the quality pulse at each one.
+      enc.encode(frame, { keyFrame: i === 0 });
       frame.close();
       while (enc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
       if (i % 15 === 0) { onProgress?.(i / n); await new Promise(r => setTimeout(r, 0)); }

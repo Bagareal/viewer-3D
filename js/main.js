@@ -57,6 +57,7 @@ async function openFile(file) {
     setModel(obj, tree, groups, file.name);
     fileName = file.name; side.classList.remove('nomodel'); expanded = false;
     labels(); overlay();
+    if (panel === 'file') showPanel('frame'); // next step once the file is open
   } catch (err) {
     const m = String(err.message || err), oom = /memory|allocation|abort/i.test(m) || (isCad(ext) && file.size > STEP_LIMIT);
     const text = oom ? t('oom') : m;
@@ -140,7 +141,7 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerup', e => {
   drag = null;
-  if (down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && pick(e.clientX, e.clientY)) { showTab('tools'); drawMove(); }
+  if (down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && pick(e.clientX, e.clientY)) { if (panel === 'help' || !panel) showPanel('parts'); drawMove(); }
   down = null;
 });
 cv.addEventListener('pointercancel', () => { drag = down = null; });
@@ -227,12 +228,18 @@ $('save').onclick = async () => {
   } finally { $('save').disabled = false; }
 };
 
-// ---------- tabs and language
-function showTab(tab) {
-  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  $('tools').hidden = tab !== 'tools'; $('help').hidden = tab !== 'help';
+// ---------- icon bar: one panel at a time; clicking the open one again hides the panel for a bigger view
+let panel = 'file';
+const railButtons = [...document.querySelectorAll('#rail button')];
+function showPanel(id) {
+  panel = id;
+  railButtons.forEach(b => b.classList.toggle('on', b.dataset.panel === id));
+  document.querySelectorAll('#panel .pane').forEach(p => p.hidden = p.id !== 'p-' + id);
+  $('panel').hidden = !id;
+  const b = railButtons.find(b => b.dataset.panel === id);
+  if (b) $('panelTitle').textContent = t(b.dataset.title);
 }
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+railButtons.forEach(b => b.onclick = () => showPanel(panel === b.dataset.panel ? '' : b.dataset.panel));
 Object.entries(LANGS).forEach(([k, n]) => $('lang').add(new Option(n, k)));
 $('lang').onchange = e => { setLang(e.target.value); labels(); };
 function labels() {
@@ -247,7 +254,8 @@ function labels() {
   $('help').innerHTML = t('help');
   $('savemsg').textContent = t('saveHint'); $('viewMsg').textContent = '';
   $('moveMsg').textContent = t('moveHint');
-  relabelParts(); drawViews(); relabelCube(); drawMove();
+  railButtons.forEach(b => b.title = t(b.dataset.title));
+  relabelParts(); drawViews(); relabelCube(); drawMove(); showPanel(panel);
 }
 
 // ---------- start

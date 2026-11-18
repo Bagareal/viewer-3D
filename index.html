@@ -53,29 +53,22 @@
 </main>
 
 <aside id="side" class="nomodel">
-  <header>
-    <strong>Viewer 3D</strong>
-    <select id="lang" aria-label="Language"></select>
-  </header>
-  <nav id="tabs">
-    <button class="on" data-tab="tools" data-t="tabTools"></button>
-    <button data-tab="help" data-t="tabHelp"></button>
-  </nav>
+  <div id="panel">
+    <header>
+      <strong id="panelTitle"></strong>
+      <select id="lang" aria-label="Language"></select>
+    </header>
 
-  <div class="pane" id="tools">
-
-    <details class="sec">
-      <summary><span class="num">1</span><span data-t="sFile"></span></summary>
+    <div class="pane" id="p-file">
       <div class="body">
         <h1 id="name"></h1>
         <button id="load" class="wide" data-pick></button>
         <input type="file" id="file" accept=".stp,.step,.igs,.iges,.glb,.gltf,.obj,.stl" hidden>
         <p class="hint" data-t="loadHint"></p>
       </div>
-    </details>
+    </div>
 
-    <details class="sec needs">
-      <summary><span class="num">2</span><span data-t="sFrame"></span></summary>
+    <div class="pane" id="p-frame" hidden>
       <div class="body">
         <div class="field"><h2 data-t="views"></h2><div class="seg grid" id="presets"></div></div>
         <div class="field"><h2 data-t="focal"></h2><div class="seg" id="focals"></div><p class="hint" data-t="focalHint"></p></div>
@@ -88,10 +81,18 @@
           <input type="file" id="viewFile" accept=".json,application/json" hidden>
         </div>
       </div>
-    </details>
+      <h3 class="sub" data-t="sMove"></h3>
+      <div class="body">
+        <div class="field"><div class="seg grid" id="moves"></div><p class="hint" id="moveDesc"></p></div>
+        <div class="field"><h2 data-t="moveKeys"></h2><div class="seg" id="moveKeys"></div>
+          <p class="hint" id="moveInfo"></p><p class="hint" id="moveDetail"></p></div>
+        <div class="row nowrap between"><h2 data-t="videoSize"></h2><div class="seg" id="videoSizes"></div></div>
+        <div class="row nowrap"><button id="movePlay" data-t="movePlay"></button><button id="moveExport" class="primary wide" data-t="moveExport"></button></div>
+        <p class="hint" id="moveMsg"></p>
+      </div>
+    </div>
 
-    <details class="sec needs">
-      <summary><span class="num">3</span><span data-t="sProduct"></span></summary>
+    <div class="pane" id="p-product" hidden>
       <div class="body">
         <div class="field"><h2 data-t="front"></h2><button id="setFront" class="wide" data-t="frontBtn"></button>
           <p class="hint" data-t="frontHint"></p>
@@ -101,10 +102,9 @@
           <p class="hint" data-t="dragHint"></p>
           <button class="link" id="rotReset" data-t="reset"></button></div>
       </div>
-    </details>
+    </div>
 
-    <details class="sec needs">
-      <summary><span class="num">4</span><span data-t="sParts"></span><span class="count" id="partCount"></span></summary>
+    <div class="pane" id="p-parts" hidden>
       <div class="body">
         <div class="field">
           <input type="search" id="partFilter" data-tp="partsFilter">
@@ -117,38 +117,36 @@
           <div class="seg" id="expModes"></div>
           <p class="hint" data-t="expHint"></p></div>
       </div>
-    </details>
+    </div>
 
-    <details class="sec needs">
-      <summary><span class="num">5</span><span data-t="sLook"></span></summary>
+    <div class="pane" id="p-look" hidden>
       <div class="body">
         <div class="field"><h2 data-t="style"></h2><div class="seg" id="styles"></div><p class="hint" data-t="styleHint"></p></div>
         <div class="field" id="colorField"><h2 data-t="colors"></h2><div class="seg" id="colors"></div></div>
         <div class="field" id="bgField"><h2 data-t="bg"></h2><div class="seg" id="bgs"></div>
           <label id="floorLabel"><input type="checkbox" id="floor"> <span data-t="floor"></span></label></div>
       </div>
-    </details>
+    </div>
 
-    <details class="sec needs">
-      <summary><span class="num">6</span><span data-t="sMove"></span></summary>
-      <div class="body">
-        <div class="field"><div class="seg grid" id="moves"></div><p class="hint" id="moveDesc"></p></div>
-        <div class="field"><h2 data-t="moveKeys"></h2><div class="seg" id="moveKeys"></div>
-          <p class="hint" id="moveInfo"></p><p class="hint" id="moveDetail"></p></div>
-        <div class="row nowrap between"><h2 data-t="videoSize"></h2><div class="seg" id="videoSizes"></div></div>
-        <div class="row nowrap"><button id="movePlay" data-t="movePlay"></button><button id="moveExport" class="primary wide" data-t="moveExport"></button></div>
-        <p class="hint" id="moveMsg"></p>
-      </div>
-    </details>
+    <div class="pane" id="p-help" hidden><div id="help"></div></div>
+
+    <footer class="needs">
+      <div class="row nowrap between"><h2 data-t="size"></h2><div class="seg" id="sizes"></div></div>
+      <button id="save" class="primary wide" data-t="save"></button>
+      <p class="hint" id="savemsg"></p>
+    </footer>
   </div>
 
-  <div class="pane" id="help" hidden></div>
-
-  <footer class="needs">
-    <div class="row nowrap between"><h2 data-t="size"></h2><div class="seg" id="sizes"></div></div>
-    <button id="save" class="primary wide" data-t="save"></button>
-    <p class="hint" id="savemsg"></p>
-  </footer>
+  <nav id="rail">
+    <button class="on" data-panel="file" data-title="sFile"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span data-t="rFile"></span></button>
+    <button class="needs" data-panel="frame" data-title="sFrameMove"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg><span data-t="rFrame"></span></button>
+    <button class="needs" data-panel="product" data-title="sProduct"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5 M12 12v9"/></svg><span data-t="rProduct"></span></button>
+    <button class="needs" data-panel="parts" data-title="sParts"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5"/></svg><span data-t="rParts"></span><b class="count" id="partCount"></b></button>
+    <button class="needs" data-panel="look" data-title="sLook"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" class="fill"/></svg><span data-t="rLook"></span></button>
+    <span class="grow"></span>
+    <button data-panel="help" data-title="tabHelp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6v.6 M12 17h.01"/></svg><span data-t="rHelp"></span></button>
+    <span id="version" title="Viewer 3D">v4</span>
+  </nav>
 </aside>
 
 </div>
