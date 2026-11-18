@@ -36,7 +36,7 @@ function normalize() {
 }
 const saveHome = () => { homeQ = model.quaternion.clone(); homeP = model.position.clone(); };
 
-export function setModel(obj, tree, groups) {
+export function setModel(obj, tree, groups, name) {
   obj.traverse(o => {
     if (!o.isMesh) return;
     if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
@@ -49,7 +49,11 @@ export function setModel(obj, tree, groups) {
   try { normalize(); } catch (e) { holder.remove(obj); dispose(obj); if (old) { holder.add(old); normalize(); } throw e; }
   if (old) dispose(old);
   model = obj; picked = null; lit.clear(); applyMaterials();
-  buildParts(tree || treeFromObject(obj, groups)); saveHome(); place(view.dir);
+  buildParts(tree || treeFromObject(obj, groups)); saveHome();
+  orientKey = name || null;
+  const q = orientKey && storedOrientation(orientKey);
+  if (q) orientTo(q);
+  place(view.dir);
 }
 
 // ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]}; a node's own meshes are one part)
@@ -158,14 +162,53 @@ export function applyExplode() {
 export function setExplodeMode(m) { expMode = m; $('parts').classList.toggle('sel', m === 'sel'); applyExplode(); }
 
 // ---------- orientation
+// How the product was straightened is remembered per file name, in this browser only,
+// so the same file opens upright next time.
+const OKEY = 'viewer3d.orient.';
+let orientKey = null;
+function storedOrientation(name) {
+  try {
+    const a = JSON.parse(localStorage.getItem(OKEY + name));
+    return Array.isArray(a) && a.length === 4 && a.every(Number.isFinite) ? new THREE.Quaternion().fromArray(a) : null;
+  } catch (e) { return null; }
+}
+// Puts the model in orientation q (from its straightened position, any free turn is dropped),
+// back on the floor, and remembers it.
+function orientTo(q) {
+  expBase.forEach((p, m) => m.position.copy(p));
+  model.quaternion.copy(homeQ); model.position.copy(homeP);
+  model.position.applyQuaternion(q.clone().multiply(homeQ.clone().invert())); model.quaternion.copy(q);
+  normalize(); saveHome();
+  if (orientKey) try { localStorage.setItem(OKEY + orientKey, JSON.stringify(model.quaternion.toArray())); } catch (e) {}
+}
 // Quarter turn around a world axis; the model is then put back on the floor and the view reframed.
 export function turn90(ax) {
   if (!model) return;
-  expBase.forEach((p, m) => m.position.copy(p));
-  model.quaternion.copy(homeQ); model.position.copy(homeP);
-  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), Math.PI / 2);
-  model.position.applyQuaternion(q); model.quaternion.premultiply(q);
-  normalize(); saveHome(); place(view.dir); applyExplode();
+  orientTo(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), Math.PI / 2).multiply(homeQ));
+  place(view.dir); applyExplode();
+}
+// "This is the front": what the camera shows now becomes the front, and the top of the picture the top.
+// Both are rounded to the product's own axes, so it never ends up tilted.
+export function setFrontFromView() {
+  if (!model) return;
+  const toModel = model.quaternion.clone().invert();
+  const look = cam.getWorldDirection(new THREE.Vector3()).negate().applyQuaternion(toModel); // product -> camera
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion).applyQuaternion(toModel);
+  const snap = (v, not) => {
+    const k = ['x', 'y', 'z'].filter(a => a !== not).reduce((b, c) => Math.abs(v[c]) > Math.abs(v[b]) ? c : b);
+    const r = new THREE.Vector3(); r[k] = Math.sign(v[k]) || 1; return [r, k];
+  };
+  const [f, fk] = snap(look), [u] = snap(up, fk), w = new THREE.Vector3().crossVectors(u, f);
+  // rotation taking the product's axes w, u, f to the scene's right, up and front
+  orientTo(new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(w, u, f).transpose()));
+  place([0, .12, 1]); applyExplode();
+}
+// Back to the orientation of the file, and forget the one remembered.
+export function resetOrientation() {
+  if (!model) return;
+  if (orientKey) try { localStorage.removeItem(OKEY + orientKey); } catch (e) {}
+  const key = orientKey; orientKey = null; orientTo(new THREE.Quaternion()); orientKey = key;
+  place(view.dir); applyExplode();
 }
 // Free turn around one axis through the middle of the product (used while dragging).
 export function spin(ax, angle) {

@@ -1,6 +1,6 @@
 // Wires the interface to the viewer.
 import { THREE, view, renderer, ctr, sphere, place, resize, setFocal, setRatio, getPose, setPose, refreshLook, snapshot } from './viewer.js';
-import { model, picked, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, spin, resetSpin, pick, relabelParts } from './model.js';
+import { model, picked, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, setFrontFromView, resetOrientation, spin, resetSpin, pick, relabelParts } from './model.js';
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
@@ -53,7 +53,7 @@ async function openFile(file) {
   await new Promise(r => setTimeout(r, 60)); // lets the message paint before heavy work
   try {
     const { obj, tree, groups } = await loadFile(file, s => overlay('busy', s));
-    setModel(obj, tree, groups);
+    setModel(obj, tree, groups, file.name);
     fileName = file.name; side.classList.remove('nomodel'); expanded = false;
     labels(); overlay();
   } catch (err) {
@@ -123,6 +123,8 @@ async function importViews(file) {
 
 // ---------- product position
 document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => turn90(b.dataset.r));
+$('setFront').onclick = setFrontFromView;
+$('orientReset').onclick = resetOrientation;
 seg('axes', [{ v: 'free', key: 'dragOrbit' }, { v: 'x', label: 'X' }, { v: 'y', label: 'Y' }, { v: 'z', label: 'Z' }], 'free', v => { axis = v; ctr.enableRotate = v === 'free'; });
 $('rotReset').onclick = resetSpin;
 const cv = renderer.domElement; let down = null, drag = null;
