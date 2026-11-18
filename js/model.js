@@ -127,10 +127,15 @@ export function filterParts(q) {
 }
 
 // ---------- exploded view
-// Whole parts move: all meshes of a part (one per colour) get the same offset, from the part's centre.
-const expSet = new Set(); let expMode = 'all', expBase = new Map(), expUnits = [];
+// Like a technical exploded drawing: the largest part (the body) stays; every other part leaves
+// along one of the product's own six directions (up, down, front, back, left, right): the side it
+// sticks out of the body the most, so a part below goes down and a handle on top goes up. Parts
+// leaving on the same side keep their order, the outer ones going further, so none goes through
+// another on its way. Whole parts move: all meshes of a part (one per colour) get the same offset.
+// The plan is made once per model, in the product's axes, so it holds whatever the orientation.
+const expSet = new Set(); let expMode = 'all', expBase = new Map(), expUnits = [], expPlan = null;
 function initExplode() {
-  expBase = new Map(); expUnits = [];
+  expBase = new Map(); expUnits = []; expPlan = null;
   if (!model) return;
   const seen = new Set();
   const add = ms => {
@@ -144,18 +149,65 @@ function initExplode() {
   $('exp').value = 0; $('expVal').textContent = '0%';
 }
 function refreshEx() { rows.forEach(({ node, ex }) => { const ms = allMeshes(node); ex.classList.toggle('on', ms.length > 0 && ms.every(m => expSet.has(m))); }); }
-const _ub = new THREE.Box3(), _mb = new THREE.Box3(), _off = new THREE.Vector3();
+const _mb = new THREE.Box3(), _m4 = new THREE.Matrix4(), _o = new THREE.Vector3(), _w = new THREE.Vector3();
+const AXES3 = ['x', 'y', 'z'];
+// Offset of each unit at 100 %, in the product's axes (parts at rest).
+function planExplode() {
+  const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const boxes = expUnits.map(ms => {
+    const b = new THREE.Box3();
+    ms.forEach(m => { _m4.multiplyMatrices(inv, m.matrixWorld); b.union(_mb.copy(m.geometry.boundingBox).applyMatrix4(_m4)); });
+    return b;
+  });
+  const all = new THREE.Box3(); boxes.forEach(b => all.union(b));
+  const diag = all.getSize(new THREE.Vector3()).length(), gap = diag * .07, tol = diag * .002;
+  const vol = b => { const v = b.getSize(new THREE.Vector3()); return v.x * v.y * v.z; };
+  let body = 0; boxes.forEach((b, i) => { if (vol(b) > vol(boxes[body])) body = i; });
+  const B = boxes[body];
+  // Do two boxes face each other along axis k (they overlap on the two other axes)?
+  const facing = (a, c, k) => AXES3.every(q => q === k || Math.min(a.max[q], c.max[q]) - Math.max(a.min[q], c.min[q]) > tol);
+  // Interval along the outward direction (k, s): lo = inner side, hi = outer side.
+  const span = (b, k, s) => s > 0 ? [b.min[k], b.max[k]] : [-b.max[k], -b.min[k]];
+  const groups = new Map();
+  boxes.forEach((b, i) => {
+    if (i === body || b.isEmpty()) return;
+    let best = null;
+    for (const k of AXES3) for (const s of [1, -1]) {
+      const out = s > 0 ? b.max[k] - B.max[k] : B.min[k] - b.min[k]; // how far it sticks out of the body
+      if (!best || out > best.out + tol) best = { k, s, out };
+    }
+    const key = best.k + best.s;
+    groups.has(key) ? groups.get(key).push(i) : groups.set(key, [i]);
+  });
+  const plan = boxes.map(() => new THREE.Vector3());
+  groups.forEach((list, key) => {
+    const k = key[0], s = key.endsWith('-1') ? -1 : 1, bodyHi = span(B, k, s)[1];
+    list.sort((i, j) => span(boxes[i], k, s)[0] - span(boxes[j], k, s)[0]); // inner first
+    const placed = [];
+    for (const i of list) {
+      const [lo, hi] = span(boxes[i], k, s);
+      let need = lo + gap;
+      if (facing(boxes[i], B, k)) need = Math.max(need, bodyHi + gap);
+      for (const p of placed) if (facing(boxes[i], boxes[p.i], k)) need = Math.max(need, p.hi + gap);
+      const move = need - lo;
+      placed.push({ i, hi: hi + move });
+      plan[i][k] = s * move;
+    }
+  });
+  return plan;
+}
 export function applyExplode() {
   if (!model) return;
-  const f = $('exp').value / 100 * 1.5; $('expVal').textContent = $('exp').value + '%';
+  const f = $('exp').value / 100; $('expVal').textContent = $('exp').value + '%';
   expBase.forEach((p, m) => m.position.copy(p)); model.updateMatrixWorld(true); invalidate();
   if (f === 0) return;
-  const C = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-  expUnits.forEach(ms => {
+  expPlan ??= planExplode();
+  const origin = model.localToWorld(_o.set(0, 0, 0)).clone();
+  expUnits.forEach((ms, i) => {
     if (expMode === 'sel' && !ms.some(m => expSet.has(m))) return;
-    _ub.makeEmpty(); ms.forEach(m => _ub.union(_mb.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld)));
-    _ub.getCenter(_off).sub(C).multiplyScalar(f);
-    ms.forEach(m => { const target = m.parent.localToWorld(expBase.get(m).clone()).add(_off); m.position.copy(m.parent.worldToLocal(target)); });
+    const off = model.localToWorld(_w.copy(expPlan[i]).multiplyScalar(f)).sub(origin); // product axes -> scene
+    if (off.lengthSq() === 0) return;
+    ms.forEach(m => { const target = m.parent.localToWorld(expBase.get(m).clone()).add(off); m.position.copy(m.parent.worldToLocal(target)); });
   });
   model.updateMatrixWorld(true);
 }
