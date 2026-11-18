@@ -171,21 +171,35 @@ export function refreshLook() {
   invalidate();
 }
 
-// Renders exactly what is inside the frame at the requested size and returns it as an image blob.
-export async function snapshot(longSide) {
-  const { w, h, H } = frameSize(), r = w / h;
+// Capture: renders exactly what is inside the frame, at a size given by its long side.
+// beginCapture -> drawCapture (as many times as needed) -> endCapture.
+let capturePr = 1;
+export function captureSize(longSide, even = false) {
+  const { w, h } = frameSize(), r = w / h;
   const max = Math.min(renderer.capabilities.maxTextureSize, 8192), N = Math.min(longSide, max);
-  const W = r >= 1 ? N : Math.round(N * r), Hh = r >= 1 ? Math.round(N / r) : N;
-  const pr = renderer.getPixelRatio(), fov = cam.fov;
-  cam.aspect = r; cam.fov = 2 * Math.atan(Math.tan(fov * Math.PI / 360) * h / H) * 180 / Math.PI; cam.updateProjectionMatrix();
+  const rnd = even ? x => 2 * Math.round(x / 2) : Math.round; // video encoders need even sizes
+  return { W: rnd(r >= 1 ? N : N * r), H: rnd(r >= 1 ? N / r : N) };
+}
+export function beginCapture(longSide, even = false) {
+  const { h, H } = frameSize(), { W, H: Hh } = captureSize(longSide, even);
+  capturePr = renderer.getPixelRatio();
+  cam.aspect = W / Hh; cam.fov = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * h / H) * 180 / Math.PI; cam.updateProjectionMatrix();
   renderer.setPixelRatio(1); renderer.setSize(W, Hh, false);
+  return { W, H: Hh };
+}
+export function drawCapture() { draw(); return renderer.domElement; }
+export function endCapture() { renderer.setPixelRatio(capturePr); resize(); draw(); }
+
+// The frame at the requested size, as an image blob.
+export async function snapshot(longSide) {
+  const { W, H } = beginCapture(longSide);
   let blob;
   try {
-    draw();
+    drawCapture();
     const png = view.style !== 'shaded' || view.bg === 'none';
     blob = await new Promise(res => renderer.domElement.toBlob(res, png ? 'image/png' : 'image/jpeg', .95));
-  } finally { renderer.setPixelRatio(pr); resize(); draw(); }
-  return { blob, W, H: Hh };
+  } finally { endCapture(); }
+  return { blob, W, H };
 }
 
 addEventListener('resize', resize);

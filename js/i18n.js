@@ -22,7 +22,7 @@ fr: {
   bg: 'Fond', bgGrey: 'Gris', bgWhite: 'Blanc', bgNone: 'Transparent', floor: 'Afficher le sol',
   size: 'Côté long', save: 'Enregistrer l’image', saveHint: 'JPEG, ou PNG pour le fond transparent, la profondeur et les traits.', savedMsg: 'Enregistré : ', view: 'vue',
   sMove: 'Mouvements de caméra', moveKeys: 'Images clés', moveInfo: '{n} images à exporter, {c} clip(s) vidéo de la première à la dernière image.', moveDetail: 'Détail visé (cliquez une pièce sur le modèle) : ', moveCentre: 'centre du produit', movePart: 'pièce sans nom',
-  movePlay: 'Aperçu', moveStop: 'Arrêter', moveExport: 'Exporter les images', moveDone: '{n} images et le fichier des prompts téléchargés.',
+  movePlay: 'Aperçu', moveStop: 'Arrêter', moveExport: 'Exporter images et vidéo', moveDone: '{n} images, la vidéo et le fichier des prompts téléchargés.', moveVideo: 'Vidéo : {p} %…', videoSize: 'Vidéo', moveNoVideo: '{n} images et le fichier des prompts téléchargés. Ce navigateur ne sait pas créer la vidéo : utilisez Chrome, Edge ou Brave.',
   moveHint: '0° = vue de face : redressez d’abord le produit (section 3). Choisissez le format avant (ex. 16:9) : la vidéo reprend celui de la première image. Le type d’image de la section 5 vaut pour toutes les images.',
   'mv_ORB-S': 'Orbite courte', 'mvd_ORB-S': 'Tourne de 60° devant le produit. Convient à tous les produits.',
   'mv_ORB-34': 'De 3/4 à face', 'mvd_ORB-34': 'De la vue 3/4 droite à la face. Machines à café, robots, fers.',
@@ -44,7 +44,7 @@ fr: {
 <div><h3>5. Choisir les éléments</h3><p>Décochez une pièce pour la masquer, <b>Seul</b> pour ne garder qu’elle, <b>Tout afficher</b> pour revenir. La recherche filtre la liste par nom.</p><p><b>Vue éclatée</b> : le curseur écarte les pièces du centre. <b>Éléments choisis</b> n’écarte que les pièces marquées ✦.</p></div>
 <div><h3>6. Choisir le rendu</h3><ul><li><b>Rendu</b> : l’image ombrée, en gris neutre ou avec les couleurs du fichier</li><li><b>Profondeur</b> : carte de profondeur (blanc = proche, noir = loin)</li><li><b>Traits</b> : dessin au trait des contours</li><li><b>Fond transparent</b> : PNG détouré, sans sol</li></ul></div>
 <div><h3>7. Enregistrer</h3><p><b>Enregistrer l’image</b> télécharge ce qui est dans le cadre, à la taille choisie.</p></div>
-<div><h3>8. Mouvements de caméra</h3><p>Pour la vidéo IA. Redressez d’abord le produit (0° = vue de face) et choisissez le format (ex. 16:9). Choisissez un mouvement : il se joue tout de suite (<b>Aperçu</b> pour le revoir). Vérifiez les images clés avec 1, 2, 3, puis <b>Exporter les images</b> : les images clés et un fichier <b>_seedance.txt</b> avec un clip première → dernière image par paire et son prompt. Pour <b>Approche</b> et <b>Recul</b>, cliquez d’abord la pièce à viser.</p></div>
+<div><h3>8. Mouvements de caméra</h3><p>Pour la vidéo IA. Redressez d’abord le produit (0° = vue de face) et choisissez le format (ex. 16:9). Choisissez un mouvement : il se joue tout de suite (<b>Aperçu</b> pour le revoir). Vérifiez les images clés avec 1, 2, 3, puis <b>Exporter images et vidéo</b> : les images clés, une vidéo MP4 de référence du mouvement (1080p ou 4K, 5 s par clip, 30 images/s, fond plein) et un fichier <b>_seedance.txt</b> avec un clip première → dernière image par paire et son prompt. Pour <b>Approche</b> et <b>Recul</b>, cliquez d’abord la pièce à viser.</p></div>
 <div><h3>Astuce</h3><p>Donnez à l’IA l’image comme référence de position et de perspective, et à côté une vraie photo du produit pour les couleurs et les matières.</p></div>`
 },
 en: {
@@ -67,7 +67,7 @@ en: {
   bg: 'Background', bgGrey: 'Grey', bgWhite: 'White', bgNone: 'Transparent', floor: 'Show the floor',
   size: 'Long side', save: 'Save the image', saveHint: 'JPEG, or PNG for transparent background, depth and lines.', savedMsg: 'Saved: ', view: 'view',
   sMove: 'Camera moves', moveKeys: 'Keyframes', moveInfo: '{n} frames to export, {c} video clip(s) from first to last frame.', moveDetail: 'Detail aimed at (click a part on the model): ', moveCentre: 'centre of the product', movePart: 'unnamed part',
-  movePlay: 'Preview', moveStop: 'Stop', moveExport: 'Export the frames', moveDone: '{n} frames and the prompt file downloaded.',
+  movePlay: 'Preview', moveStop: 'Stop', moveExport: 'Export frames and video', moveDone: '{n} frames, the video and the prompt file downloaded.', moveVideo: 'Video: {p}%…', videoSize: 'Video', moveNoVideo: '{n} frames and the prompt file downloaded. This browser cannot make the video: use Chrome, Edge or Brave.',
   moveHint: '0° = front view: straighten the product first (section 3). Choose the image format first (e.g. 16:9): the video takes the format of the first frame. The image type in section 5 applies to all frames.',
   'mv_ORB-S': 'Short orbit', 'mvd_ORB-S': 'Turns 60° in front of the product. Works for every product.',
   'mv_ORB-34': '3/4 to front', 'mvd_ORB-34': 'From the 3/4 right view to the front. Coffee machines, food processors, irons.',
@@ -89,7 +89,7 @@ en: {
 <div><h3>5. Pick the parts</h3><p>Untick a part to hide it, <b>Solo</b> to keep only that one, <b>Show all</b> to go back. The search box filters the list by name.</p><p><b>Exploded view</b>: the slider moves parts away from the centre. <b>Chosen parts</b> only moves the parts marked ✦.</p></div>
 <div><h3>6. Choose the look</h3><ul><li><b>Render</b>: the shaded image, in neutral grey or with the file's colours</li><li><b>Depth</b>: depth map (white = near, black = far)</li><li><b>Lines</b>: line drawing of the outlines</li><li><b>Transparent background</b>: cut-out PNG, without the floor</li></ul></div>
 <div><h3>7. Save</h3><p><b>Save the image</b> downloads what is inside the frame, at the chosen size.</p></div>
-<div><h3>8. Camera moves</h3><p>For AI video. First straighten the product (0° = front view) and choose the format (e.g. 16:9). Pick a move: it plays at once (<b>Preview</b> to play it again). Check the keyframes with 1, 2, 3, then <b>Export the frames</b>: the keyframes and a <b>_seedance.txt</b> file with one first → last frame clip per pair and its prompt. For <b>Push in</b> and <b>Pull back</b>, first click the part to aim at.</p></div>
+<div><h3>8. Camera moves</h3><p>For AI video. First straighten the product (0° = front view) and choose the format (e.g. 16:9). Pick a move: it plays at once (<b>Preview</b> to play it again). Check the keyframes with 1, 2, 3, then <b>Export frames and video</b>: the keyframes, an MP4 reference video of the move (1080p or 4K, 5 s per clip, 30 fps, solid background) and a <b>_seedance.txt</b> file with one first → last frame clip per pair and its prompt. For <b>Push in</b> and <b>Pull back</b>, first click the part to aim at.</p></div>
 <div><h3>Tip</h3><p>Give the AI the image as a position and perspective reference, and alongside it a real photo of the product for colours and materials.</p></div>`
 },
 it: {
@@ -112,7 +112,7 @@ it: {
   bg: 'Sfondo', bgGrey: 'Grigio', bgWhite: 'Bianco', bgNone: 'Trasparente', floor: 'Mostra il pavimento',
   size: 'Lato lungo', save: 'Salva l’immagine', saveHint: 'JPEG, oppure PNG per sfondo trasparente, profondità e linee.', savedMsg: 'Salvato: ', view: 'vista',
   sMove: 'Movimenti camera', moveKeys: 'Fotogrammi chiave', moveInfo: '{n} frame da esportare, {c} clip video dal primo all’ultimo frame.', moveDetail: 'Dettaglio inquadrato (clicca un pezzo sul modello): ', moveCentre: 'centro del prodotto', movePart: 'pezzo senza nome',
-  movePlay: 'Anteprima', moveStop: 'Ferma', moveExport: 'Esporta i frame', moveDone: '{n} frame e il file dei prompt scaricati.',
+  movePlay: 'Anteprima', moveStop: 'Ferma', moveExport: 'Esporta frame e video', moveDone: '{n} frame, il video e il file dei prompt scaricati.', moveVideo: 'Video: {p}%…', videoSize: 'Video', moveNoVideo: '{n} frame e il file dei prompt scaricati. Questo browser non sa creare il video: usa Chrome, Edge o Brave.',
   moveHint: '0° = vista Fronte: prima raddrizza il prodotto (sezione 3). Scegli prima il formato (es. 16:9): il video prende quello del primo frame. Il tipo di immagine della sezione 5 vale per tutti i frame.',
   'mv_ORB-S': 'Orbita corta', 'mvd_ORB-S': 'Gira di 60° davanti al prodotto. Va bene per tutti i prodotti.',
   'mv_ORB-34': 'Da 3/4 a fronte', 'mvd_ORB-34': 'Dalla vista 3/4 destra al fronte. Macchine da caffè, robot da cucina, ferri da stiro.',
@@ -134,7 +134,7 @@ it: {
 <div><h3>5. Scegliere gli elementi</h3><p>Togli la spunta a un pezzo per nasconderlo, <b>Solo</b> per tenere soltanto quello, <b>Mostra tutto</b> per tornare indietro. La ricerca filtra la lista per nome.</p><p><b>Vista esplosa</b>: il cursore allontana i pezzi dal centro. <b>Elementi scelti</b> allontana solo i pezzi marcati ✦.</p></div>
 <div><h3>6. Scegliere l’aspetto</h3><ul><li><b>Render</b>: l’immagine ombreggiata, in grigio neutro o con i colori del file</li><li><b>Profondità</b>: mappa di profondità (bianco = vicino, nero = lontano)</li><li><b>Linee</b>: disegno al tratto dei contorni</li><li><b>Sfondo trasparente</b>: PNG già scontornato, senza pavimento</li></ul></div>
 <div><h3>7. Salvare</h3><p><b>Salva l’immagine</b> scarica ciò che è dentro la cornice, alla dimensione scelta.</p></div>
-<div><h3>8. Movimenti camera</h3><p>Per i video con IA. Prima raddrizza il prodotto (0° = vista Fronte) e scegli il formato (es. 16:9). Scegli un movimento: parte subito (<b>Anteprima</b> per rivederlo). Controlla i fotogrammi chiave con 1, 2, 3, poi <b>Esporta i frame</b>: i fotogrammi chiave e un file <b>_seedance.txt</b> con una clip primo → ultimo frame per ogni coppia e il suo prompt. Per <b>Avvicinamento</b> e <b>Allontanamento</b>, prima clicca il pezzo da inquadrare.</p></div>
+<div><h3>8. Movimenti camera</h3><p>Per i video con IA. Prima raddrizza il prodotto (0° = vista Fronte) e scegli il formato (es. 16:9). Scegli un movimento: parte subito (<b>Anteprima</b> per rivederlo). Controlla i fotogrammi chiave con 1, 2, 3, poi <b>Esporta frame e video</b>: i fotogrammi chiave, un video MP4 di riferimento del movimento (1080p o 4K, 5 s per clip, 30 fps, sfondo pieno) e un file <b>_seedance.txt</b> con una clip primo → ultimo frame per ogni coppia e il suo prompt. Per <b>Avvicinamento</b> e <b>Allontanamento</b>, prima clicca il pezzo da inquadrare.</p></div>
 <div><h3>Consiglio</h3><p>Dai all’IA l’immagine come riferimento di posizione e prospettiva, e accanto una foto vera del prodotto per colori e materiali.</p></div>`
 }};
 

@@ -5,9 +5,10 @@ import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
 import { MOVES, goToKey, play, playing, stop, seedanceText } from './moves.js';
+import { VIDEO_SIZES, recordMove, videoSupported } from './video.js';
 
 const $ = id => document.getElementById(id), side = $('side');
-let fileName = '', expanded = false, longSide = 3000, axis = 'free';
+let fileName = '', expanded = false, longSide = 3000, axis = 'free', videoSide = 1920;
 
 // ---------- small helpers
 // A row of buttons where exactly one is on. items: [{v, key}] (translated) or [{v, label}] (fixed text).
@@ -184,6 +185,9 @@ function playMove() {
 $('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
+// One button: the keyframes, the reference video of the whole move, and the prompt file.
+seg('videoSizes', VIDEO_SIZES, videoSide, v => { videoSide = v; });
+const gap = () => new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
 $('moveExport').onclick = async () => {
   if (!model) return;
   stopMove(); $('moveExport').disabled = true;
@@ -194,10 +198,19 @@ $('moveExport').onclick = async () => {
       const { blob } = await snapshot(longSide);
       const name = `${baseName()}_${move.id}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
       download(blob, name); names.push(name);
-      await new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
+      await gap();
     }
-    download(new Blob([seedanceText(move, names, fileName)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
-    $('moveMsg').textContent = t('moveDone').replace('{n}', names.length);
+    let video = null;
+    if (videoSupported()) {
+      const msg = p => { $('moveMsg').textContent = t('moveVideo').replace('{p}', Math.round(p * 100)); };
+      msg(0);
+      try {
+        const r = await recordMove(move, videoSide, msg);
+        if (r) { video = { ...r, name: `${baseName()}_${move.id}_video.mp4` }; download(r.blob, video.name); await gap(); }
+      } catch (e) { console.error(e); }
+    }
+    download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
+    $('moveMsg').textContent = t(video ? 'moveDone' : 'moveNoVideo').replace('{n}', names.length);
   } finally { $('moveExport').disabled = false; }
 };
 

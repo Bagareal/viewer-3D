@@ -69,6 +69,14 @@ function apply({ az, el, d, tx, target }) {
 
 export function goToKey(move, i) { refresh(); apply(at(move.keys, i)); }
 
+// Same easing as the preview: slow start and end.
+const ease = p => p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+// Camera at progress p (0..1) of the whole move.
+export function moveAt(move, p) {
+  if (p === 0) refresh();
+  apply(at(move.keys, ease(p) * (move.keys.length - 1)));
+}
+
 let raf = 0;
 export const playing = () => raf !== 0;
 export function stop() { cancelAnimationFrame(raf); raf = 0; }
@@ -77,16 +85,17 @@ export function play(move, done) {
   stop(); refresh();
   const n = move.keys.length - 1, T = 2200 * n, t0 = performance.now();
   const step = now => {
-    const p = Math.min((now - t0) / T, 1), e = p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
-    apply(at(move.keys, e * n));
+    const p = Math.min((now - t0) / T, 1);
+    apply(at(move.keys, ease(p) * n));
     if (p < 1) raf = requestAnimationFrame(step); else { raf = 0; done?.(); }
   };
   raf = requestAnimationFrame(step);
 }
 
 // Text file exported with the frames: one first frame -> last frame clip per pair of keyframes, prompts in English.
-export function seedanceText(move, names, product) {
+export function seedanceText(move, names, product, video) {
   const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt} The camera starts at ${words(move.keys[i])}, and ends at ${words(move.keys[i + 1])}. ${COMMON}`);
   const head = [`Camera move: ${move.id}`, `Product: ${product}`, `Focal length in the viewer: ${view.focal} mm`, `Frames: ${names.join(', ')}`];
+  if (video) head.push(`Reference video of the camera move: ${video.name} (${video.W} x ${video.H}, ${video.fps} fps, ${video.seconds} s)`);
   return head.join('\n') + '\n\n' + clips.join('\n\n') + '\n';
 }
