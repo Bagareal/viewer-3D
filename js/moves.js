@@ -29,7 +29,19 @@ export const MOVES = [
   { id: 'ARC', keys: [{ az: 60, el: 35, d: 1.1 }, { az: 20, el: 22 }, { az: -20, el: 10 }],
     prompt: 'The camera arcs around the product while descending from a high angle towards the height of the product.' },
 ];
-const COMMON = 'Smooth, continuous camera movement with no cuts. The product stays exactly the same: same shape, proportions, colours and details. The background stays consistent.';
+const COMMON = 'The product and the room stay completely still: only the camera moves. Smooth, continuous camera movement with no cuts. The product stays exactly the same: same shape, proportions, colours and details.';
+
+// Camera position in plain words, so the video model knows where the camera starts and ends.
+const SIDES = [[0, 'the front'], [45, 'the front-right three-quarter view'], [90, 'the right side'], [135, 'the back-right three-quarter view'],
+  [180, 'the back'], [-135, 'the back-left three-quarter view'], [-90, 'the left side'], [-45, 'the front-left three-quarter view']];
+const norm = a => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
+function words(key) {
+  const k = K(key), az = norm(k.az);
+  const side = SIDES.map(([a, w]) => [w, Math.abs(norm(az - a))]).sort((a, b) => a[1] - b[1])[0][0];
+  const height = k.el >= 60 ? 'from directly above' : k.el >= 25 ? 'from a high angle' : k.el <= -3 ? 'from slightly below' : 'at product height';
+  const dist = k.ty === 'detail' ? ', close-up on the detail' : k.d <= .5 ? ', close-up' : k.d >= 1.4 ? ', wide shot' : '';
+  return k.el >= 60 ? height + dist : `${side}, ${height}${dist}`;
+}
 
 const K = k => ({ az: 0, el: 10, d: 1, ty: .5, tx: 0, ...k });
 const box = new THREE.Box3();
@@ -74,7 +86,7 @@ export function play(move, done) {
 
 // Text file exported with the frames: one first frame -> last frame clip per pair of keyframes, prompts in English.
 export function seedanceText(move, names, product) {
-  const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt} ${COMMON}`);
+  const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt} The camera starts at ${words(move.keys[i])}, and ends at ${words(move.keys[i + 1])}. ${COMMON}`);
   const head = [`Camera move: ${move.id}`, `Product: ${product}`, `Focal length in the viewer: ${view.focal} mm`, `Frames: ${names.join(', ')}`];
   return head.join('\n') + '\n\n' + clips.join('\n\n') + '\n';
 }
