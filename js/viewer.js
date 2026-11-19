@@ -190,24 +190,32 @@ export function beginCapture(longSide, even = false) {
 export function drawCapture() { draw(); return renderer.domElement; }
 export function endCapture() { renderer.setPixelRatio(capturePr); resize(); draw(); }
 
-// Masks of the frame, same framing and size as the image, always PNG. The visible parts are drawn
-// in black on white at twice the size, then reduced: the edge pixels get in-between values that
-// follow how much of each pixel the product covers (antialiasing). Openings stay background.
+// Masks of the frame, same camera, framing and size as the image, always PNG. Antialiasing: the mask
+// is drawn as if at twice the size, in 4 tiles of the image's own size (the camera's view split in
+// four, so the projection is exactly the image's and the canvas keeps its size), then every 2 x 2
+// pixels are averaged: edge pixels get in-between values that follow how much of them the product
+// covers. Openings stay background.
 // mask: product opaque, background transparent (alpha = coverage). bw: the same in black on white.
 const maskMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
 async function maskBlobs(W, H) {
-  const k = Math.max(1, Math.min(2, Math.floor(renderer.capabilities.maxTextureSize / Math.max(W, H))));
-  const wasFloor = floor.visible, bg = scene.background;
-  renderer.setRenderTarget(null); renderer.setSize(W * k, H * k, false);
-  floor.visible = false; scene.background = WHITE; scene.overrideMaterial = maskMat;
-  try { renderer.render(scene, cam); } finally { scene.overrideMaterial = null; scene.background = bg; floor.visible = wasFloor; }
+  const S = 2, sum = new Uint16Array(W * H), wasFloor = floor.visible, bg = scene.background;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d', { willReadFrequently: true });
-  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-  g.drawImage(renderer.domElement, 0, 0, W * k, H * k, 0, 0, W, H);
-  renderer.setSize(W, H, false);
-  const img = g.getImageData(0, 0, W, H), d = img.data, a = new Uint8ClampedArray(d.length);
-  for (let i = 0; i < d.length; i += 4) { const v = d[i]; d[i + 1] = d[i + 2] = v; d[i + 3] = 255; a[i + 3] = 255 - v; }
+  renderer.setRenderTarget(null); floor.visible = false; scene.background = WHITE; scene.overrideMaterial = maskMat;
+  try {
+    for (let ty = 0; ty < S; ty++) for (let tx = 0; tx < S; tx++) {
+      cam.setViewOffset(W * S, H * S, tx * W, ty * H, W, H);
+      renderer.render(scene, cam);
+      g.drawImage(renderer.domElement, 0, 0);
+      const d = g.getImageData(0, 0, W, H).data;
+      for (let y = 0; y < H; y++) {
+        const out = ((ty * H + y) >> 1) * W, row = y * W * 4;
+        for (let x = 0; x < W; x++) sum[out + ((tx * W + x) >> 1)] += d[row + x * 4];
+      }
+    }
+  } finally { cam.clearViewOffset(); scene.overrideMaterial = null; scene.background = bg; floor.visible = wasFloor; }
+  const img = g.createImageData(W, H), d = img.data, a = new Uint8ClampedArray(d.length);
+  for (let i = 0, j = 0; i < sum.length; i++, j += 4) { const v = Math.round(sum[i] / (S * S)); d[j] = d[j + 1] = d[j + 2] = v; d[j + 3] = 255; a[j + 3] = 255 - v; }
   g.putImageData(img, 0, 0);
   const bw = await new Promise(res => c.toBlob(res, 'image/png'));
   g.clearRect(0, 0, W, H); g.putImageData(new ImageData(a, W, H), 0, 0);
