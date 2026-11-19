@@ -6,6 +6,7 @@ import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
 import { MOVES, goToKey, play, playing, stop, focus, zoom, dists, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
 import { VIDEO_SIZES, recordMove, videoSupported } from './video.js';
+import { zip } from './zip.js';
 
 const $ = id => document.getElementById(id), side = $('side');
 let fileName = '', expanded = false, longSide = 3000, axis = 'free', videoSide = 1920;
@@ -348,22 +349,19 @@ afterDraw.push(drawMarks);
 $('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
-// Three buttons: the keyframes (with their masks), the reference video alone, or everything.
+// Three buttons: the keyframes (with their masks), the reference video alone, or everything; always in one .zip.
 seg('videoSizes', VIDEO_SIZES, videoSide, v => { videoSide = v; });
 const gap = () => new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
 async function exportMove(wantFrames, wantVideo) {
   if (!model || move.keys.length < 2) return;
   stopMove(); exportButtons.forEach(id => $(id).disabled = true);
   try {
-    const names = [];
+    const names = [], files = [], base = `${baseName()}_${moveId(move)}`;
     if (wantFrames) for (let i = 0; i < move.keys.length; i++) {
       toKey(i);
       const { blob, mask, bw } = await snapshot(longSide, true);
-      const stem = `${baseName()}_${moveId(move)}_${i + 1}`, name = `${stem}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
-      download(blob, name); names.push(name);
-      await gap();
-      download(mask, `${stem}_mask.png`); await gap();
-      download(bw, `${stem}_mask_bw.png`); await gap();
+      const stem = `${base}_${i + 1}`, name = `${stem}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+      files.push({ name, blob }, { name: `${stem}_mask.png`, blob: mask }, { name: `${stem}_mask_bw.png`, blob: bw }); names.push(name);
     }
     let video = null;
     if (wantVideo && videoSupported()) {
@@ -371,11 +369,13 @@ async function exportMove(wantFrames, wantVideo) {
       msg(0);
       try {
         const r = await recordMove(move, videoSide, msg);
-        if (r) { video = { ...r, name: `${baseName()}_${moveId(move)}_video.mp4` }; download(r.blob, video.name); await gap(); }
+        if (r) { video = { ...r, name: `${base}_video.mp4` }; files.push({ name: video.name, blob: r.blob }); }
       } catch (e) { console.error(e); }
     }
+    let archive = '';
+    if (files.length) { archive = `${base}_${wantFrames ? wantVideo ? 'all' : 'frames' : 'video'}.zip`; download(await zip(files), archive); }
     const key = !wantFrames ? (video ? 'xVideoDone' : 'xNoVideo') : !wantVideo ? 'xFramesDone' : video ? 'moveDone' : 'moveNoVideo';
-    $('moveMsg').textContent = t(key).replace('{n}', names.length);
+    $('moveMsg').textContent = t(key).replace('{n}', names.length) + (archive ? ` (${archive})` : '');
   } finally { exportButtons.forEach(id => $(id).disabled = false); sel = -1; drawMove(); }
 }
 $('expFrames').onclick = () => exportMove(true, false);
