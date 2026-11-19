@@ -190,16 +190,32 @@ export function beginCapture(longSide, even = false) {
 export function drawCapture() { draw(); return renderer.domElement; }
 export function endCapture() { renderer.setPixelRatio(capturePr); resize(); draw(); }
 
-// The frame at the requested size, as an image blob.
-export async function snapshot(longSide) {
+// Mask of the frame: visible parts black, everything else white, hard edges (a pixel is pure black
+// when the product covers at least half of it, otherwise pure white). Always PNG.
+const maskMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+function maskBlob(W, H) {
+  const wasFloor = floor.visible, bg = scene.background;
+  renderer.setRenderTarget(null); floor.visible = false; scene.background = WHITE; scene.overrideMaterial = maskMat;
+  try { renderer.render(scene, cam); } finally { scene.overrideMaterial = null; scene.background = bg; floor.visible = wasFloor; }
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(renderer.domElement, 0, 0);
+  const img = g.getImageData(0, 0, W, H), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const v = d[i] < 128 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+  return new Promise(res => c.toBlob(res, 'image/png'));
+}
+
+// The frame at the requested size, as an image blob; with mask: also its mask.
+export async function snapshot(longSide, withMask = false) {
   const { W, H } = beginCapture(longSide);
-  let blob;
+  let blob, mask = null;
   try {
     drawCapture();
     const png = view.style !== 'shaded' || view.bg === 'none';
     blob = await new Promise(res => renderer.domElement.toBlob(res, png ? 'image/png' : 'image/jpeg', .95));
+    if (withMask) mask = await maskBlob(W, H);
   } finally { endCapture(); }
-  return { blob, W, H };
+  return { blob, mask, W, H };
 }
 
 addEventListener('resize', resize);

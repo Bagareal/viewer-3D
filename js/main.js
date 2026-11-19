@@ -358,10 +358,11 @@ async function exportMove(wantFrames, wantVideo) {
     const names = [];
     if (wantFrames) for (let i = 0; i < move.keys.length; i++) {
       toKey(i);
-      const { blob } = await snapshot(longSide);
-      const name = `${baseName()}_${moveId(move)}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+      const { blob, mask } = await snapshot(longSide, true);
+      const stem = `${baseName()}_${moveId(move)}_${i + 1}`, name = `${stem}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
       download(blob, name); names.push(name);
       await gap();
+      download(mask, `${stem}_mask.png`); await gap();
     }
     let video = null;
     if (wantVideo && videoSupported()) {
@@ -387,10 +388,11 @@ $('save').onclick = async () => {
   if (!model) return;
   $('save').disabled = true;
   try {
-    const { blob, W, H } = await snapshot(longSide);
-    const tag = { shaded: 'POV', depth: 'depth', lines: 'lines' }[view.style];
-    const name = `${baseName()}_${tag}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
-    download(blob, name); $('savemsg').textContent = `${t('savedMsg')}${name} (${W} × ${H} px)`;
+    const { blob, mask, W, H } = await snapshot(longSide, true);
+    const tag = { shaded: 'POV', depth: 'depth', lines: 'lines' }[view.style], stem = `${baseName()}_${tag}`;
+    const name = `${stem}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+    download(blob, name); await gap(); download(mask, `${stem}_mask.png`);
+    $('savemsg').textContent = `${t('savedMsg')}${name}, ${stem}_mask.png (${W} × ${H} px)`;
   } finally { $('save').disabled = false; }
 };
 
