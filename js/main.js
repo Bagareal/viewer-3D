@@ -4,7 +4,7 @@ import { model, picked, setModel, applyMaterials, showAll, expandAll, filterPart
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
-import { MOVES, goToKey, play, playing, stop, seedanceText, focus, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
+import { MOVES, goToKey, play, playing, stop, seedanceText, focus, zoom, dists, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
 import { VIDEO_SIZES, recordMove, videoSupported } from './video.js';
 
 const $ = id => document.getElementById(id), side = $('side');
@@ -55,7 +55,7 @@ async function openFile(file) {
   try {
     const { obj, tree, groups } = await loadFile(file, s => overlay('busy', s));
     setModel(obj, tree, groups, file.name);
-    fileName = file.name; side.classList.remove('nomodel'); expanded = false; focus.start = focus.end = null;
+    fileName = file.name; side.classList.remove('nomodel'); expanded = false; focus.start = focus.end = zoom.start = zoom.end = null;
     labels(); overlay();
     if (panel === 'file') showPanel('frame'); // next step once the file is open
   } catch (err) {
@@ -198,12 +198,12 @@ function drawMove() {
   $('moveInfo').textContent = n < 2 ? t('keyFew') : t('moveInfo').replace('{n}', n).replace('{c}', n - 1);
   $('moveDetail').hidden = move.custom || !!focus.end || !move.keys.some(k => k.ty === 'detail');
   $('moveDetail').textContent = t('moveDetail') + (picked ? picked.name || t('movePart') : t('moveCentre'));
-  $('focusField').hidden = move.custom; $('editField').hidden = !move.custom; $('mvCopy').hidden = move.custom;
+  $('focusField').hidden = $('zoomField').hidden = move.custom; $('editField').hidden = !move.custom; $('mvCopy').hidden = move.custom;
   ['keyUpdate', 'keyDel'].forEach(id => $(id).disabled = sel < 0);
   ['movePlay', ...exportButtons].forEach(id => $(id).disabled = n < 2);
-  drawFocus(); invalidate();
+  drawFocus(); drawZoom(); invalidate();
 }
-function toKey(i) { stopMove(); clearPreset(); sel = i; mark($('moveKeys'), $('moveKeys').children[i]); ['keyUpdate', 'keyDel'].forEach(id => $(id).disabled = false); if (model) goToKey(move, i); }
+function toKey(i) { stopMove(); clearPreset(); sel = i; mark($('moveKeys'), $('moveKeys').children[i]); ['keyUpdate', 'keyDel'].forEach(id => $(id).disabled = false); if (model) goToKey(move, i); drawZoom(); }
 function stopMove() { stop(); $('movePlay').textContent = t('movePlay'); invalidate(); }
 function playMove() {
   if (!model || move.keys.length < 2) return;
@@ -211,7 +211,7 @@ function playMove() {
 }
 
 // Aimed point of the first and last keyframe of the ready-made moves: height slider, or a click on the model.
-const focusRows = [...document.querySelectorAll('.focus')];
+const focusRows = [...document.querySelectorAll('#focusField .focus')];
 function drawFocus() {
   const A = model && move.keys.length ? aimsInBox(move) : null;
   focusRows.forEach(row => {
@@ -233,6 +233,31 @@ focusRows.forEach(row => {
   row.querySelector('.pick').onclick = () => startPicking(end);
   row.querySelector('.auto').onclick = () => setFocus(end, null);
 });
+
+// Distance of the first and last keyframe of the ready-made moves; of the chosen keyframe in moves made by hand.
+const zoomRows = [...document.querySelectorAll('#zoomField .focus')], pct = d => Math.round(d * 100) + '%';
+function drawZoom() {
+  const D = dists(move);
+  zoomRows.forEach(row => {
+    const end = row.dataset.end, d = D.length ? D[end === 'start' ? 0 : D.length - 1] : 1;
+    row.querySelector('input').value = Math.round(d * 100);
+    row.querySelector('.val').textContent = (zoom[end] == null ? t('focusAuto') + ' · ' : '') + pct(d);
+    row.classList.toggle('isauto', zoom[end] == null);
+  });
+  const k = move.custom && move.keys[sel], kz = $('keyZoom');
+  kz.classList.toggle('off', !k); kz.querySelector('input').value = Math.round((k ? k.d : 1) * 100);
+  kz.querySelector('.val').textContent = k ? pct(k.d) : '';
+}
+function setZoom(end, value) { zoom[end] = value; if (model) toKey(focusKey(end)); drawMove(); }
+zoomRows.forEach(row => {
+  const end = row.dataset.end;
+  row.querySelector('input').oninput = e => setZoom(end, e.target.value / 100);
+  row.querySelector('.auto').onclick = () => setZoom(end, null);
+});
+$('keyZoom').querySelector('input').oninput = e => {
+  const k = move.custom && move.keys[sel]; if (!k || !model) return;
+  k.d = e.target.value / 100; goToKey(move, sel); drawZoom();
+};
 
 // Click on the model: the next click picks a point of the surface instead of a part.
 function startPicking(kind) {

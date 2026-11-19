@@ -59,6 +59,9 @@ const fromBox = t => new THREE.Vector3(...t).multiply(box.getSize(new THREE.Vect
 // Aimed point chosen by hand for the first and last keyframe of the ready-made moves:
 // null = the move's own, otherwise a point in the box. The keyframes between follow from one to the other.
 export const focus = { start: null, end: null };
+// Distance chosen by hand for the first and last keyframe of the ready-made moves (1 = the whole
+// product fills the frame, smaller = closer): null = the move's own. The keyframes between go from one to the other.
+export const zoom = { start: null, end: null };
 
 // The aimed point before the sideways shift.
 function aim(k) {
@@ -74,6 +77,13 @@ function aims(move) {
   const n = own.length - 1, a = focus.start ? fromBox(focus.start) : own[0], b = focus.end ? fromBox(focus.end) : own[n];
   return own.map((_, i) => a.clone().lerp(b, i / n));
 }
+// Distances of all the keyframes of a move, with the distance chosen by hand.
+export function dists(move) {
+  const own = move.keys.map(k => K(k).d);
+  if (move.custom || (zoom.start == null && zoom.end == null)) return own;
+  const n = own.length - 1, a = zoom.start ?? own[0], b = zoom.end ?? own[n];
+  return own.map((_, i) => n ? a + (b - a) * i / n : a);
+}
 // Same, as [x, y, z] in the box, for the interface (sliders).
 export function aimsInBox(move) { refresh(); return aims(move).map(toBox); }
 // Catmull-Rom: smooth curve through p1 (f = 0) and p2 (f = 1), shaped by the keyframes before and after.
@@ -82,7 +92,7 @@ const cr = (p0, p1, p2, p3, f) => .5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p
 // through every keyframe, without the sudden change of direction and speed at the middle ones that a
 // straight line between keyframes gives. With two keyframes it is the same straight path as before.
 function at(move, s) {
-  const A = aims(move), P = move.keys.map((k, i) => { const c = K(k), t = A[i]; return [c.az, c.el, c.d, c.tx, t.x, t.y, t.z]; });
+  const A = aims(move), D = dists(move), P = move.keys.map((k, i) => { const c = K(k), t = A[i]; return [c.az, c.el, D[i], c.tx, t.x, t.y, t.z]; });
   const n = P.length - 1;
   if (n < 1) { const v = P[0]; return { az: v[0], el: v[1], d: v[2], tx: v[3], target: new THREE.Vector3(v[4], v[5], v[6]) }; } // one keyframe so far
   const i = Math.min(Math.floor(s), n - 1), f = s - i;
@@ -148,9 +158,9 @@ export function keyFromCamera(prev) {
 // A ready-made move turned into keyframes made by hand, with the focus as it is now.
 export function toCustom(move) {
   refresh();
-  const A = aims(move).map(toBox);
+  const A = aims(move).map(toBox), D = dists(move);
   let prev = null;
-  return move.keys.map((k, i) => { const c = K(k); if (c.tx) { goToKey(move, i); return prev = keyFromCamera(prev); } return prev = { az: c.az, el: c.el, d: c.d, t: A[i] }; });
+  return move.keys.map((k, i) => { const c = K(k); if (c.tx) { goToKey(move, i); return prev = keyFromCamera(prev); } return prev = { az: c.az, el: c.el, d: D[i], t: A[i] }; });
 }
 export const validMove = m => m && typeof m.name === 'string' && m.name.trim() && Array.isArray(m.keys) && m.keys.length >= 2 &&
   m.keys.every(k => k && ['az', 'el', 'd'].every(a => Number.isFinite(k[a])) && k.d > 0 && Array.isArray(k.t) && k.t.length === 3 && k.t.every(Number.isFinite));
@@ -158,7 +168,8 @@ const CUSTOM_PROMPT = 'The camera moves smoothly from the position of the first 
 
 // Text file exported with the frames: one first frame -> last frame clip per pair of keyframes, prompts in English.
 export function seedanceText(move, names, product, video) {
-  const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt || CUSTOM_PROMPT} The camera starts at ${words(move.keys[i])}, and ends at ${words(move.keys[i + 1])}. ${COMMON}`);
+  const D = dists(move), keys = move.keys.map((k, i) => ({ ...k, d: D[i] }));
+  const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt || CUSTOM_PROMPT} The camera starts at ${words(keys[i])}, and ends at ${words(keys[i + 1])}. ${COMMON}`);
   const head = [`Camera move: ${move.name || move.id}`, `Product: ${product}`, `Focal length in the viewer: ${view.focal} mm`, `Frames: ${names.join(', ')}`];
   if (video) head.push(`Reference video of the camera move: ${video.name} (${video.W} x ${video.H}, ${video.fps} fps, ${video.seconds} s)`);
   return head.join('\n') + '\n\n' + clips.join('\n\n') + '\n';
