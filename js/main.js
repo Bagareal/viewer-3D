@@ -1,10 +1,10 @@
 // Wires the interface to the viewer.
-import { THREE, view, renderer, ctr, sphere, place, resize, setFocal, setRatio, getPose, setPose, refreshLook, snapshot } from './viewer.js';
-import { model, picked, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, setFrontFromView, resetOrientation, spin, resetSpin, pick, relabelParts } from './model.js';
+import { THREE, view, renderer, ctr, cam, sphere, place, resize, setFocal, setRatio, getPose, setPose, refreshLook, snapshot, invalidate, afterDraw, setCamera } from './viewer.js';
+import { model, picked, setModel, applyMaterials, showAll, expandAll, filterParts, applyExplode, setExplodeMode, turn90, setFrontFromView, resetOrientation, spin, resetSpin, pick, pointAt, relabelParts } from './model.js';
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
-import { MOVES, goToKey, play, playing, stop, seedanceText } from './moves.js';
+import { MOVES, goToKey, play, playing, stop, seedanceText, focus, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
 import { VIDEO_SIZES, recordMove, videoSupported } from './video.js';
 
 const $ = id => document.getElementById(id), side = $('side');
@@ -55,7 +55,7 @@ async function openFile(file) {
   try {
     const { obj, tree, groups } = await loadFile(file, s => overlay('busy', s));
     setModel(obj, tree, groups, file.name);
-    fileName = file.name; side.classList.remove('nomodel'); expanded = false;
+    fileName = file.name; side.classList.remove('nomodel'); expanded = false; focus.start = focus.end = null;
     labels(); overlay();
     if (panel === 'file') showPanel('frame'); // next step once the file is open
   } catch (err) {
@@ -74,7 +74,7 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => {
   e.preventDefault(); dragDepth = 0; $('veil').hidden = true;
   const f = e.dataTransfer.files[0]; if (!f) return;
-  if (extOf(f.name) === 'json') importViews(f); else openFile(f);
+  if (extOf(f.name) === 'json') importJson(f); else openFile(f);
 });
 
 // ---------- framing
@@ -114,13 +114,19 @@ $('viewName').onkeydown = e => { if (e.key === 'Enter') $('viewSave').click(); }
 $('viewExport').onclick = () => download(new Blob([JSON.stringify({ viewer3d: 1, views }, null, 1)], { type: 'application/json' }), 'viewer3d_views.json');
 $('viewImport').onclick = () => $('viewFile').click();
 $('viewFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importViews(f); };
-async function importViews(file) {
-  let list = [];
-  try { const d = JSON.parse(await file.text()); list = (Array.isArray(d) ? d : d.views || []).filter(validView); } catch (e) {}
-  $('viewMsg').textContent = list.length ? '' : t('viewBad');
-  if (!list.length) return;
+async function readJson(file) { try { return JSON.parse(await file.text()); } catch (e) { return null; } }
+async function importViews(file) { addViews(await readJson(file)); }
+function addViews(d, quiet) {
+  const list = (d ? Array.isArray(d) ? d : d.views || [] : []).filter(validView);
+  $('viewMsg').textContent = list.length || quiet ? '' : t('viewBad');
+  if (!list.length) return false;
   list.forEach(v => { views = views.filter(o => o.name !== v.name); views.push({ name: v.name.slice(0, 40), pos: v.pos, target: v.target, focal: +v.focal || 50, ratio: +v.ratio || 0 }); });
-  storeViews();
+  storeViews(); return true;
+}
+// A file dropped on the window: saved views and / or moves.
+async function importJson(file) {
+  const d = await readJson(file);
+  if (!addViews(d, true) && !addMoves(d)) $('viewMsg').textContent = t('viewBad');
 }
 
 // ---------- product position
@@ -141,6 +147,9 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerup', e => {
   drag = null;
+  if (picking && down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
+    const p = pointAt(e.clientX, e.clientY); if (p) usePoint(p); down = null; return;
+  }
   if (down && down.b === 0 && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5 && pick(e.clientX, e.clientY)) { if (panel === 'help' || !panel) showPanel('parts'); drawMove(); }
   down = null;
 });
@@ -167,38 +176,165 @@ seg('bgs', [{ v: 'grey', key: 'bgGrey' }, { v: 'white', key: 'bgWhite' }, { v: '
 $('floor').onchange = e => { view.floor = e.target.checked; lookChanged(); };
 
 // ---------- camera moves for AI video: keyframes exported as first / last frames, with the prompts
-let move = MOVES[0];
-seg('moves', MOVES.map((m, i) => ({ v: i, key: 'mv_' + m.id })), 0, i => { stopMove(); move = MOVES[i]; drawMove(); playMove(); });
+// move: a ready-made move from MOVES, or a move made by hand ({ custom, name, keys, from }) being edited:
+// a copy, saved to "My moves" with Save. sel: the keyframe shown last (edited by Update / Delete).
+const exportButtons = ['expFrames', 'expVideo', 'expEvery'];
+let move = MOVES[0], sel = -1, picking = '';
+seg('moves', MOVES.map((m, i) => ({ v: i, key: 'mv_' + m.id })), 0, i => { setMove(MOVES[i]); playMove(); });
+const moveId = m => m.custom ? (m.name || 'custom').replace(/[^\w-]+/g, '_') : m.id;
+const lastKey = () => move.keys.length - 1;
+function setMove(m) {
+  stopMove(); stopPicking(); sel = -1;
+  const custom = !MOVES.includes(m);
+  move = custom ? { custom, name: m.name, from: m.name, keys: m.keys.map(k => ({ ...k, t: [...k.t] })) } : m;
+  if (custom) mark($('moves'), null);
+  $('mvName').value = move.custom ? move.name : '';
+  drawMove(); drawMine(); invalidate();
+}
 function drawMove() {
   const n = move.keys.length, keys = $('moveKeys'); keys.innerHTML = '';
-  move.keys.forEach((k, i) => { const b = document.createElement('button'); b.textContent = i + 1; b.onclick = () => toKey(i); keys.append(b); });
-  $('moveDesc').textContent = t('mvd_' + move.id);
-  $('moveInfo').textContent = t('moveInfo').replace('{n}', n).replace('{c}', n - 1);
-  $('moveDetail').hidden = !move.keys.some(k => k.ty === 'detail');
+  move.keys.forEach((k, i) => { const b = document.createElement('button'); b.textContent = i + 1; b.onclick = () => toKey(i); b.classList.toggle('on', i === sel); keys.append(b); });
+  $('moveDesc').textContent = t(move.custom ? 'mvd_custom' : 'mvd_' + move.id);
+  $('moveInfo').textContent = n < 2 ? t('keyFew') : t('moveInfo').replace('{n}', n).replace('{c}', n - 1);
+  $('moveDetail').hidden = move.custom || !!focus.end || !move.keys.some(k => k.ty === 'detail');
   $('moveDetail').textContent = t('moveDetail') + (picked ? picked.name || t('movePart') : t('moveCentre'));
+  $('focusField').hidden = move.custom; $('editField').hidden = !move.custom; $('mvCopy').hidden = move.custom;
+  ['keyUpdate', 'keyDel'].forEach(id => $(id).disabled = sel < 0);
+  ['movePlay', ...exportButtons].forEach(id => $(id).disabled = n < 2);
+  drawFocus(); invalidate();
 }
-function toKey(i) { stopMove(); clearPreset(); mark($('moveKeys'), $('moveKeys').children[i]); if (model) goToKey(move, i); }
-function stopMove() { stop(); $('movePlay').textContent = t('movePlay'); }
+function toKey(i) { stopMove(); clearPreset(); sel = i; mark($('moveKeys'), $('moveKeys').children[i]); ['keyUpdate', 'keyDel'].forEach(id => $(id).disabled = false); if (model) goToKey(move, i); }
+function stopMove() { stop(); $('movePlay').textContent = t('movePlay'); invalidate(); }
 function playMove() {
-  if (!model) return;
-  clearPreset(); mark($('moveKeys'), null); $('movePlay').textContent = t('moveStop'); play(move, stopMove);
+  if (!model || move.keys.length < 2) return;
+  stopPicking(); clearPreset(); sel = -1; mark($('moveKeys'), null); $('movePlay').textContent = t('moveStop'); play(move, stopMove);
 }
+
+// Aimed point of the first and last keyframe of the ready-made moves: height slider, or a click on the model.
+const focusRows = [...document.querySelectorAll('.focus')];
+function drawFocus() {
+  const A = model && move.keys.length ? aimsInBox(move) : null;
+  focusRows.forEach(row => {
+    const end = row.dataset.end, a = A && A[end === 'start' ? 0 : A.length - 1], v = a ? Math.round(a[1] * 100) : 50;
+    row.querySelector('input').value = v;
+    row.querySelector('.val').textContent = (focus[end] ? '' : t('focusAuto') + ' · ') + v + '%';
+    row.classList.toggle('isauto', !focus[end]);
+  });
+}
+const focusKey = end => end === 'start' ? 0 : lastKey();
+function setFocus(end, value) { focus[end] = value; if (model) toKey(focusKey(end)); drawMove(); }
+focusRows.forEach(row => {
+  const end = row.dataset.end;
+  row.querySelector('input').oninput = e => {
+    if (!model) return;
+    const a = aimsInBox(move)[focusKey(end)]; // keeps the point's depth and sides, changes its height
+    setFocus(end, [a[0], e.target.value / 100, a[2]]);
+  };
+  row.querySelector('.pick').onclick = () => startPicking(end);
+  row.querySelector('.auto').onclick = () => setFocus(end, null);
+});
+
+// Click on the model: the next click picks a point of the surface instead of a part.
+function startPicking(kind) {
+  if (!model) return;
+  const again = picking === kind; stopPicking(); if (again) return;
+  stopMove(); picking = kind; $('stage').classList.add('picking');
+  document.querySelectorAll('button.pick').forEach(b => b.classList.toggle('on', (b.closest('.focus')?.dataset.end || 'aim') === kind));
+}
+function stopPicking() { picking = ''; $('stage').classList.remove('picking'); document.querySelectorAll('button.pick.on').forEach(b => b.classList.remove('on')); }
+function usePoint(p) {
+  const kind = picking; stopPicking();
+  if (kind === 'aim') { setCamera(cam.position.clone(), p); clearPreset(); return; } // the camera turns towards the point
+  setFocus(kind, toBox(p));
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && picking) stopPicking(); });
+
+// Moves made by hand: keyframes taken from the camera as it is in the viewer.
+const unwrap = keys => keys.forEach((k, i) => { if (i) k.az += Math.round((keys[i - 1].az - k.az) / 360) * 360; });
+function editKeys(change) { if (!model || !move.custom) return; stopMove(); stopPicking(); change(); unwrap(move.keys); drawMove(); }
+$('mvNew').onclick = () => setMove({ name: '', keys: [] });
+$('mvCopy').onclick = () => {
+  if (!model || move.custom) return;
+  const name = t('mv_' + move.id), keys = toCustom(move);
+  setMove({ name: '', keys }); $('mvName').value = name; toKey(0);
+};
+$('keyAdd').onclick = () => editKeys(() => {
+  const i = sel >= 0 ? sel + 1 : move.keys.length;
+  move.keys.splice(i, 0, keyFromCamera(move.keys[i - 1])); sel = i;
+});
+$('keyUpdate').onclick = () => editKeys(() => { if (sel >= 0) move.keys[sel] = keyFromCamera(move.keys[sel - 1]); });
+$('keyDel').onclick = () => editKeys(() => { if (sel < 0) return; move.keys.splice(sel, 1); sel = Math.min(sel, lastKey()); });
+$('aimPick').onclick = () => startPicking('aim');
+
+// "My moves", kept in this browser like the saved views; export / import to share.
+const MKEY = 'viewer3d.moves';
+let mine = []; try { mine = JSON.parse(localStorage.getItem(MKEY)) || []; } catch (e) {}
+mine = mine.filter(validMove);
+function storeMine() { try { localStorage.setItem(MKEY, JSON.stringify(mine)); } catch (e) {} drawMine(); }
+function drawMine() {
+  const box = $('myMoves'); box.innerHTML = ''; box.dataset.empty = t('mvNone');
+  mine.forEach((m, i) => {
+    const row = document.createElement('div'); row.className = 'viewrow';
+    const go = document.createElement('button'); go.className = 'go'; go.textContent = go.title = m.name;
+    go.classList.toggle('on', move.custom && move.from === m.name);
+    go.onclick = () => { setMove(m); playMove(); };
+    const del = document.createElement('button'); del.className = 'del'; del.textContent = '✕'; del.title = del.ariaLabel = t('viewDel');
+    del.onclick = () => { mine.splice(i, 1); if (move.from === m.name) move.from = null; storeMine(); };
+    row.append(go, del); box.append(row);
+  });
+  $('mvExport').hidden = !mine.length;
+}
+$('mvSave').onclick = () => {
+  if (!move.custom) return;
+  if (move.keys.length < 2) { $('mvMsg').textContent = t('keyFew'); return; }
+  let name = $('mvName').value.trim();
+  if (!name) { let n = mine.length + 1; while (mine.some(m => m.name === `${t('mvAuto')} ${n}`)) n++; name = `${t('mvAuto')} ${n}`; }
+  move.name = move.from = name; $('mvName').value = name; $('mvMsg').textContent = '';
+  mine = mine.filter(m => m.name !== name); mine.push({ name, keys: move.keys.map(k => ({ ...k, t: [...k.t] })) }); storeMine();
+};
+$('mvName').onkeydown = e => { if (e.key === 'Enter') $('mvSave').click(); };
+$('mvExport').onclick = () => download(new Blob([JSON.stringify({ viewer3d: 1, moves: mine }, null, 1)], { type: 'application/json' }), 'viewer3d_moves.json');
+$('mvImport').onclick = () => $('mvFile').click();
+$('mvFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) addMoves(await readJson(f)); };
+// Adds the moves found in an exported file; true when there were some.
+function addMoves(d) {
+  const list = (d && (Array.isArray(d.moves) ? d.moves : [])).filter(validMove);
+  $('mvMsg').textContent = list.length ? '' : t('mvBad');
+  list.forEach(m => { const name = m.name.trim().slice(0, 40); mine = mine.filter(o => o.name !== name); mine.push({ name, keys: m.keys.map(({ az, el, d, t }) => ({ az, el, d, t })) }); });
+  if (list.length) storeMine();
+  return list.length > 0;
+}
+
+// Markers on the stage: where the camera aims at each keyframe (never in the exported images).
+function drawMarks() {
+  const box = $('marks'), show = model && panel === 'frame' && !playing() && move.keys.length;
+  box.hidden = !show; if (!show) return;
+  const W = $('stage').clientWidth, H = $('stage').clientHeight, pts = aimedPoints(move);
+  while (box.children.length > pts.length) box.lastChild.remove();
+  while (box.children.length < pts.length) box.append(document.createElement('b'));
+  pts.forEach((p, i) => {
+    const b = box.children[i], v = p.project(cam);
+    b.hidden = v.z > 1 || Math.abs(v.x) > 1.2 || Math.abs(v.y) > 1.2;
+    b.textContent = i + 1; b.className = i === 0 ? 'first' : i === pts.length - 1 ? 'last' : '';
+    b.style.left = (v.x + 1) / 2 * W + 'px'; b.style.top = (1 - v.y) / 2 * H + 'px';
+  });
+}
+afterDraw.push(drawMarks);
 $('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
 // Three buttons: the keyframes (with the prompt file), the reference video alone, or everything.
 seg('videoSizes', VIDEO_SIZES, videoSide, v => { videoSide = v; });
 const gap = () => new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
-const exportButtons = ['expFrames', 'expVideo', 'expEvery'];
 async function exportMove(wantFrames, wantVideo) {
-  if (!model) return;
+  if (!model || move.keys.length < 2) return;
   stopMove(); exportButtons.forEach(id => $(id).disabled = true);
   try {
     const names = [];
     if (wantFrames) for (let i = 0; i < move.keys.length; i++) {
       toKey(i);
       const { blob } = await snapshot(longSide);
-      const name = `${baseName()}_${move.id}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+      const name = `${baseName()}_${moveId(move)}_${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
       download(blob, name); names.push(name);
       await gap();
     }
@@ -208,13 +344,13 @@ async function exportMove(wantFrames, wantVideo) {
       msg(0);
       try {
         const r = await recordMove(move, videoSide, msg);
-        if (r) { video = { ...r, name: `${baseName()}_${move.id}_video.mp4` }; download(r.blob, video.name); await gap(); }
+        if (r) { video = { ...r, name: `${baseName()}_${moveId(move)}_video.mp4` }; download(r.blob, video.name); await gap(); }
       } catch (e) { console.error(e); }
     }
-    if (wantFrames) download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${move.id}_seedance.txt`);
+    if (wantFrames) download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${moveId(move)}_seedance.txt`);
     const key = !wantFrames ? (video ? 'xVideoDone' : 'xNoVideo') : !wantVideo ? 'xFramesDone' : video ? 'moveDone' : 'moveNoVideo';
     $('moveMsg').textContent = t(key).replace('{n}', names.length);
-  } finally { exportButtons.forEach(id => $(id).disabled = false); }
+  } finally { exportButtons.forEach(id => $(id).disabled = false); sel = -1; drawMove(); }
 }
 $('expFrames').onclick = () => exportMove(true, false);
 $('expVideo').onclick = () => exportMove(false, true);
@@ -243,6 +379,7 @@ function showPanel(id) {
   $('panel').hidden = !id;
   const b = railButtons.find(b => b.dataset.panel === id);
   if (b) $('panelTitle').textContent = t(b.dataset.title);
+  invalidate();
 }
 railButtons.forEach(b => b.onclick = () => showPanel(panel === b.dataset.panel ? '' : b.dataset.panel));
 Object.entries(LANGS).forEach(([k, n]) => $('lang').add(new Option(n, k)));
@@ -258,9 +395,9 @@ function labels() {
   $('parts').dataset.empty = t('partsEmpty');
   $('help').innerHTML = t('help');
   $('savemsg').textContent = t('saveHint'); $('viewMsg').textContent = '';
-  $('moveMsg').textContent = t('moveHint');
+  $('moveMsg').textContent = t('moveHint'); $('mvMsg').textContent = '';
   railButtons.forEach(b => b.title = t(b.dataset.title));
-  relabelParts(); drawViews(); relabelCube(); drawMove(); showPanel(panel);
+  relabelParts(); drawViews(); drawMine(); relabelCube(); drawMove(); showPanel(panel);
 }
 
 // ---------- start

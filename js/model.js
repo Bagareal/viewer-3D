@@ -276,11 +276,16 @@ export function resetSpin() { if (model) { model.quaternion.copy(homeQ); model.p
 
 // ---------- picking: click a part on the model to find it in the list
 const ray = new THREE.Raycaster(); let flash = 0;
-export function pick(clientX, clientY) {
-  if (!model) return false;
+function hitAt(clientX, clientY) {
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2((clientX - r.left) / r.width * 2 - 1, -(clientY - r.top) / r.height * 2 + 1), cam);
-  const hit = ray.intersectObject(model, true).find(h => h.object.isMesh && h.object.visible), row = hit && meshRow.get(hit.object);
+  return ray.intersectObject(model, true).find(h => h.object.isMesh && h.object.visible);
+}
+// The exact point of the surface under the mouse (aimed point of the camera moves), or null.
+export const pointAt = (clientX, clientY) => model ? hitAt(clientX, clientY)?.point || null : null;
+export function pick(clientX, clientY) {
+  if (!model) return false;
+  const hit = hitAt(clientX, clientY), row = hit && meshRow.get(hit.object);
   document.querySelectorAll('#parts .line.picked').forEach(l => l.classList.remove('picked'));
   if (!row) return false;
   picked = hit.object;
