@@ -190,32 +190,42 @@ export function beginCapture(longSide, even = false) {
 export function drawCapture() { draw(); return renderer.domElement; }
 export function endCapture() { renderer.setPixelRatio(capturePr); resize(); draw(); }
 
-// Mask of the frame: visible parts black, everything else white, hard edges (a pixel is pure black
-// when the product covers at least half of it, otherwise pure white). Always PNG.
+// Masks of the frame, same framing and size as the image, always PNG. The visible parts are drawn
+// in black on white at twice the size, then reduced: the edge pixels get in-between values that
+// follow how much of each pixel the product covers (antialiasing). Openings stay background.
+// mask: product opaque, background transparent (alpha = coverage). bw: the same in black on white.
 const maskMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
-function maskBlob(W, H) {
+async function maskBlobs(W, H) {
+  const k = Math.max(1, Math.min(2, Math.floor(renderer.capabilities.maxTextureSize / Math.max(W, H))));
   const wasFloor = floor.visible, bg = scene.background;
-  renderer.setRenderTarget(null); floor.visible = false; scene.background = WHITE; scene.overrideMaterial = maskMat;
+  renderer.setRenderTarget(null); renderer.setSize(W * k, H * k, false);
+  floor.visible = false; scene.background = WHITE; scene.overrideMaterial = maskMat;
   try { renderer.render(scene, cam); } finally { scene.overrideMaterial = null; scene.background = bg; floor.visible = wasFloor; }
   const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(renderer.domElement, 0, 0);
-  const img = g.getImageData(0, 0, W, H), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const v = d[i] < 128 ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(renderer.domElement, 0, 0, W * k, H * k, 0, 0, W, H);
+  renderer.setSize(W, H, false);
+  const img = g.getImageData(0, 0, W, H), d = img.data, a = new Uint8ClampedArray(d.length);
+  for (let i = 0; i < d.length; i += 4) { const v = d[i]; d[i + 1] = d[i + 2] = v; d[i + 3] = 255; a[i + 3] = 255 - v; }
   g.putImageData(img, 0, 0);
-  return new Promise(res => c.toBlob(res, 'image/png'));
+  const bw = await new Promise(res => c.toBlob(res, 'image/png'));
+  g.clearRect(0, 0, W, H); g.putImageData(new ImageData(a, W, H), 0, 0);
+  const mask = await new Promise(res => c.toBlob(res, 'image/png'));
+  return { mask, bw };
 }
 
-// The frame at the requested size, as an image blob; with mask: also its mask.
+// The frame at the requested size, as an image blob; withMask: also its masks.
 export async function snapshot(longSide, withMask = false) {
   const { W, H } = beginCapture(longSide);
-  let blob, mask = null;
+  let blob, mask = null, bw = null;
   try {
     drawCapture();
     const png = view.style !== 'shaded' || view.bg === 'none';
     blob = await new Promise(res => renderer.domElement.toBlob(res, png ? 'image/png' : 'image/jpeg', .95));
-    if (withMask) mask = await maskBlob(W, H);
+    if (withMask) ({ mask, bw } = await maskBlobs(W, H));
   } finally { endCapture(); }
-  return { blob, mask, W, H };
+  return { blob, mask, bw, W, H };
 }
 
 addEventListener('resize', resize);
