@@ -4,7 +4,7 @@ import { model, picked, setModel, applyMaterials, showAll, expandAll, filterPart
 import { loadFile, extOf, isCad, STEP_LIMIT } from './loaders.js';
 import { LANGS, t, getLang, setLang } from './i18n.js';
 import { relabelCube } from './gizmo.js';
-import { MOVES, goToKey, play, playing, stop, seedanceText, focus, zoom, dists, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
+import { MOVES, goToKey, play, playing, stop, focus, zoom, dists, aimsInBox, aimedPoints, toBox, keyFromCamera, toCustom, validMove } from './moves.js';
 import { VIDEO_SIZES, recordMove, videoSupported } from './video.js';
 
 const $ = id => document.getElementById(id), side = $('side');
@@ -175,7 +175,7 @@ seg('colors', [{ v: false, key: 'colGrey' }, { v: true, key: 'colOrig' }], view.
 seg('bgs', [{ v: 'grey', key: 'bgGrey' }, { v: 'white', key: 'bgWhite' }, { v: 'none', key: 'bgNone' }], view.bg, v => { view.bg = v; lookChanged(); });
 $('floor').onchange = e => { view.floor = e.target.checked; lookChanged(); };
 
-// ---------- camera moves for AI video: keyframes exported as first / last frames, with the prompts
+// ---------- camera moves for AI video: keyframes exported as first / last frames, with their masks
 // move: a ready-made move from MOVES, or a move made by hand ({ custom, name, keys, from }) being edited:
 // a copy, saved to "My moves" with Save. sel: the keyframe shown last (edited by Update / Delete).
 const exportButtons = ['expFrames', 'expVideo', 'expEvery'];
@@ -348,7 +348,7 @@ afterDraw.push(drawMarks);
 $('movePlay').onclick = () => { if (playing()) stopMove(); else playMove(); };
 renderer.domElement.addEventListener('pointerdown', () => { if (playing()) stopMove(); });
 renderer.domElement.addEventListener('wheel', () => { if (playing()) stopMove(); }, { passive: true });
-// Three buttons: the keyframes (with the prompt file), the reference video alone, or everything.
+// Three buttons: the keyframes (with their masks), the reference video alone, or everything.
 seg('videoSizes', VIDEO_SIZES, videoSide, v => { videoSide = v; });
 const gap = () => new Promise(r => setTimeout(r, 400)); // browsers drop downloads fired too close together
 async function exportMove(wantFrames, wantVideo) {
@@ -374,7 +374,6 @@ async function exportMove(wantFrames, wantVideo) {
         if (r) { video = { ...r, name: `${baseName()}_${moveId(move)}_video.mp4` }; download(r.blob, video.name); await gap(); }
       } catch (e) { console.error(e); }
     }
-    if (wantFrames) download(new Blob([seedanceText(move, names, fileName, video)], { type: 'text/plain' }), `${baseName()}_${moveId(move)}_seedance.txt`);
     const key = !wantFrames ? (video ? 'xVideoDone' : 'xNoVideo') : !wantVideo ? 'xFramesDone' : video ? 'moveDone' : 'moveNoVideo';
     $('moveMsg').textContent = t(key).replace('{n}', names.length);
   } finally { exportButtons.forEach(id => $(id).disabled = false); sel = -1; drawMove(); }

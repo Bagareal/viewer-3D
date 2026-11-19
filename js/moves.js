@@ -5,45 +5,21 @@
 // ty: height of the aimed point, 0 = base, .5 = middle, 1 = top; 'detail' = the last part clicked on the model
 // tx: sideways shift of camera and aim, in product radii (positive = towards the right of the picture)
 // t:  aimed point inside the product's box, [x, y, z] from 0 to 1 (moves made by hand); replaces ty
-import { THREE, sphere, view, fitDist, setCamera, cam, ctr } from './viewer.js';
+import { THREE, sphere, fitDist, setCamera, cam, ctr } from './viewer.js';
 import { model, picked } from './model.js';
 
 export const MOVES = [
-  { id: 'ORB-S', keys: [{ az: -30, el: 10 }, { az: 30, el: 10 }],
-    prompt: 'The camera slowly orbits around the product from left to right, about 60 degrees, keeping the same distance and height.' },
-  { id: 'ORB-34', keys: [{ az: 45, el: 12 }, { az: 0, el: 12 }],
-    prompt: 'The camera orbits from a three-quarter view to the front view of the product, keeping the same distance and height.' },
-  { id: 'ORB-180', keys: [{ az: 180, el: 12 }, { az: 90, el: 12 }, { az: 0, el: 12 }],
-    prompt: 'The camera orbits 90 degrees around the product, moving towards its front, keeping the same distance and height.' },
-  { id: 'PUSH', keys: [{ az: 20, el: 15 }, { az: 10, el: 12, d: .35, ty: 'detail' }],
-    prompt: 'The camera slowly pushes in from the whole product to a close-up of the detail shown in the last frame.' },
-  { id: 'PULL', keys: [{ az: 10, el: 12, d: .35, ty: 'detail' }, { az: 20, el: 15, d: 1.6 }],
-    prompt: 'The camera slowly pulls back from a close-up of the detail to reveal the whole product in its setting.' },
-  { id: 'CRANE', keys: [{ az: 15, el: 0, d: .6, ty: .15 }, { az: 15, el: 30, d: .6, ty: .85 }],
-    prompt: 'The camera rises vertically along the product, from its base to its top, tilting slightly down as it climbs.' },
-  { id: 'TOP', keys: [{ az: 0, el: 85 }, { az: 0, el: 35 }],
-    prompt: 'The camera descends in an arc from a top-down view to a three-quarter high-angle view of the product.' },
-  { id: 'TRUCK', keys: [{ az: 0, el: 15, d: .6, tx: -.6 }, { az: 0, el: 15, d: .6, tx: .6 }],
-    prompt: 'The camera slides sideways along the product, parallel to it, at constant distance (lateral tracking shot).' },
-  { id: 'HERO', keys: [{ az: 25, el: -5, d: 1.2 }, { az: 15, el: 8, d: .95 }],
-    prompt: 'Low-angle hero shot: the camera slowly moves closer from slightly below the product and rises gently.' },
-  { id: 'ARC', keys: [{ az: 60, el: 35, d: 1.1 }, { az: 20, el: 22 }, { az: -20, el: 10 }],
-    prompt: 'The camera arcs around the product while descending from a high angle towards the height of the product.' },
+  { id: 'ORB-S', keys: [{ az: -30, el: 10 }, { az: 30, el: 10 }] },
+  { id: 'ORB-34', keys: [{ az: 45, el: 12 }, { az: 0, el: 12 }] },
+  { id: 'ORB-180', keys: [{ az: 180, el: 12 }, { az: 90, el: 12 }, { az: 0, el: 12 }] },
+  { id: 'PUSH', keys: [{ az: 20, el: 15 }, { az: 10, el: 12, d: .35, ty: 'detail' }] },
+  { id: 'PULL', keys: [{ az: 10, el: 12, d: .35, ty: 'detail' }, { az: 20, el: 15, d: 1.6 }] },
+  { id: 'CRANE', keys: [{ az: 15, el: 0, d: .6, ty: .15 }, { az: 15, el: 30, d: .6, ty: .85 }] },
+  { id: 'TOP', keys: [{ az: 0, el: 85 }, { az: 0, el: 35 }] },
+  { id: 'TRUCK', keys: [{ az: 0, el: 15, d: .6, tx: -.6 }, { az: 0, el: 15, d: .6, tx: .6 }] },
+  { id: 'HERO', keys: [{ az: 25, el: -5, d: 1.2 }, { az: 15, el: 8, d: .95 }] },
+  { id: 'ARC', keys: [{ az: 60, el: 35, d: 1.1 }, { az: 20, el: 22 }, { az: -20, el: 10 }] },
 ];
-const COMMON = 'The product and the room stay completely still: only the camera moves. Smooth, continuous camera movement with no cuts. The product stays exactly the same: same shape, proportions, colours and details.';
-
-// Camera position in plain words, so the video model knows where the camera starts and ends.
-const SIDES = [[0, 'the front'], [45, 'the front-right three-quarter view'], [90, 'the right side'], [135, 'the back-right three-quarter view'],
-  [180, 'the back'], [-135, 'the back-left three-quarter view'], [-90, 'the left side'], [-45, 'the front-left three-quarter view']];
-const norm = a => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
-function words(key) {
-  const k = K(key), az = norm(k.az);
-  const side = SIDES.map(([a, w]) => [w, Math.abs(norm(az - a))]).sort((a, b) => a[1] - b[1])[0][0];
-  const height = k.el >= 60 ? 'from directly above' : k.el >= 25 ? 'from a high angle' : k.el <= -3 ? 'from slightly below' : 'at product height';
-  const dist = k.ty === 'detail' ? ', close-up on the detail' : k.d <= .5 ? ', close-up' : k.d >= 1.4 ? ', wide shot' : '';
-  return k.el >= 60 ? height + dist : `${side}, ${height}${dist}`;
-}
-
 const K = k => ({ az: 0, el: 10, d: 1, ty: .5, tx: 0, ...k });
 const box = new THREE.Box3();
 const refresh = () => { if (model) box.setFromObject(model); };
@@ -164,13 +140,3 @@ export function toCustom(move) {
 }
 export const validMove = m => m && typeof m.name === 'string' && m.name.trim() && Array.isArray(m.keys) && m.keys.length >= 2 &&
   m.keys.every(k => k && ['az', 'el', 'd'].every(a => Number.isFinite(k[a])) && k.d > 0 && Array.isArray(k.t) && k.t.length === 3 && k.t.every(Number.isFinite));
-const CUSTOM_PROMPT = 'The camera moves smoothly from the position of the first frame to the position of the last frame, along a natural path.';
-
-// Text file exported with the frames: one first frame -> last frame clip per pair of keyframes, prompts in English.
-export function seedanceText(move, names, product, video) {
-  const D = dists(move), keys = move.keys.map((k, i) => ({ ...k, d: D[i] }));
-  const clips = names.slice(1).map((n, i) => `Clip ${i + 1}\n  First frame: ${names[i]}\n  Last frame:  ${n}\n  Prompt: ${move.prompt || CUSTOM_PROMPT} The camera starts at ${words(keys[i])}, and ends at ${words(keys[i + 1])}. ${COMMON}`);
-  const head = [`Camera move: ${move.name || move.id}`, `Product: ${product}`, `Focal length in the viewer: ${view.focal} mm`, `Frames: ${names.join(', ')}`];
-  if (video) head.push(`Reference video of the camera move: ${video.name} (${video.W} x ${video.H}, ${video.fps} fps, ${video.seconds} s)`);
-  return head.join('\n') + '\n\n' + clips.join('\n\n') + '\n';
-}
