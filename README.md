@@ -1,6 +1,6 @@
 # Viewer 3D
 
-A 3D viewer that runs entirely in the browser: load a 3D file, pick the point of view and save an image of that view. Handy as a position reference for AI image generation.
+A 3D viewer that runs entirely in the browser: load a 3D file, pick the point of view and save an image of that view, or export a camera move as keyframes, a reference video and a prompt file. Handy as a position reference for AI image and video generation.
 
 **👉 Open the tool: https://bagareal.github.io/viewer-3D/**
 
@@ -23,10 +23,19 @@ STEP / STP, IGES, GLB / GLTF, OBJ, STL.
 7. **Choose the look**: shaded **Render** (neutral grey or the file's colours), **Depth** map (white = near) or **Lines** drawing. Grey, white or transparent background.
 8. **Save the image** (Camera panel, under Export): what is inside the frame, 2000, 3000 or 4000 px on the long side. JPEG, or PNG for transparent background, depth and lines.
 9. **Camera moves** (for AI video): 10 ready-made moves (orbits, push in, pull back, crane up, top to 3/4, side tracking, low hero, descending arc), defined relative to the product: 0° = the front view, distance 1 = whole product in the frame. Picking a move plays it at once (**Preview** to play it again), buttons 1, 2, 3 show each keyframe. Under **Export**, three buttons: **Frames** downloads the keyframes (with the chosen format, image type and size) and the prompt file, **Video** only the MP4 reference video, **Everything** both. The MP4 covers the whole move (1080p or 4K, 5 s per clip, 30 fps, rendered frame by frame so it is always smooth; solid background, as MP4 has no transparency; Chrome, Edge or Brave). The `_seedance.txt` prompt file has one first-frame → last-frame clip per pair of frames, with the camera prompt in English. For push in and pull back, first click the part to aim at on the model.
-10. **Aimed point**: by default a move aims at the middle of the product (or at the clicked part for push in and pull back). Under **Aimed point**, set the height aimed at the start and at the end of the move (0% = base, 100% = top), or click **On model** and then a point of the product. The keyframes in between go from one point to the other; **Auto** gives back the move's own. **Distance** works the same way for the camera distance at the start and at the end (100% = the whole product fills the frame, less = closer): the camera dollies in or out, the focal length does not change. Numbered dots on the view show where each keyframe aims (green = start, red = end); they never appear in the exported images.
-11. **My moves**: camera moves made by hand. **+ New move**, frame with the mouse and press **+ Keyframe** at each position (it is added after the selected keyframe; **Replace**, **Delete** and the **Distance** slider act on the selected one). **Aim at a point** turns the camera towards a clicked point without moving it. **Copy this move** starts from a ready-made move, with its aimed points. Saved moves are relative to the product's size and front, so they fit any product; they stay in the browser and can be exported / imported as a JSON file (dropping the file on the window works too). Export works as for the ready-made moves.
+10. **Aimed point**: by default a move aims at the middle of the product (or at the clicked part for push in and pull back). Under **Aimed point**, set the height aimed at the start and at the end of the move (0% = base, 100% = top), or click **On model** and then a point of the product (the slider then fine-tunes its height). The keyframes in between go from one point to the other, so a different start and end point gives a tilt; **Auto** gives back the move's own. Numbered dots on the view show where each keyframe aims (green = start, red = end); they never appear in the exported images.
+11. **Distance**: the camera distance at the start and at the end of the move, from 10% to 250% (100% = the whole product fills the frame, less = closer, more = farther). The keyframes in between go from one distance to the other; **Auto** gives back the move's own. The camera dollies in or out: the focal length does not change, so the perspective does. The prompt file follows the chosen distances (close-up, wide shot).
+12. **My moves**: camera moves made by hand. **+ New move**, frame with the mouse and press **+ Keyframe** at each position (it is added after the selected keyframe; **Replace**, **Delete** and the **Distance** slider act on the selected one). **Aim at a point** turns the camera towards a clicked point without moving it. **Copy this move** starts from a ready-made move, with its aimed points and distances. Saved moves are relative to the product's size and front, so they fit any product; they stay in the browser and can be exported / imported as a JSON file (dropping the file on the window works too). Export works as for the ready-made moves.
 
 The **Help** (?) button at the bottom of the icon bar repeats these steps. The interface opens in English and is also available in French and Italian (the last language picked is remembered).
+
+## Versions
+The version number is shown at the bottom of the icon bar.
+- **v7**: camera distance at the start and at the end of the ready-made moves; distance slider for each keyframe of the moves made by hand.
+- **v6**: aimed point at the start and at the end of the ready-made moves (height slider or a point clicked on the model), markers on the view, moves made by hand with keyframes (My moves), JSON export / import.
+- **v5**: export section in the Camera panel, English README and interface by default.
+
+Each version is one commit on `main`. To go back, undo the commits of the newer versions with `git revert` (the history stays, and the undo can be undone the same way), then push: GitHub Pages publishes the result within a few minutes. For example, back to v6: `git revert --no-edit <v7 commit>`, then `git push origin main`.
 
 ## Licenses and commercial use
 Both libraries allow commercial use: three.js (MIT license) and occt-import-js / OpenCascade (LGPL-2.1, used unmodified). Their license texts are included in `vendor/`. Images saved with the tool are not covered by these licenses.
@@ -34,7 +43,9 @@ Both libraries allow commercial use: three.js (MIT license) and occt-import-js /
 ## Under the hood
 No build step: plain HTML, CSS and JavaScript modules, with every dependency stored in the repository (the page works without any external server).
 - `index.html`, `css/style.css`: the page.
-- `js/viewer.js`: scene, camera, framing, render styles and image export. `js/model.js`: materials, parts list, exploded view, picking. `js/loaders.js` and `js/step-worker.js`: file reading. `js/i18n.js`: texts. `js/moves.js`: camera moves and the prompt file. `js/main.js`: interface wiring.
+- `js/viewer.js`: scene, camera, framing, render styles and image export. `js/model.js`: materials, parts list, exploded view, picking (parts and exact surface points). `js/loaders.js` and `js/step-worker.js`: file reading. `js/i18n.js`: texts. `js/moves.js`: camera moves (keyframes, aimed point, distance, keyframes from the current view) and the prompt file. `js/video.js`: MP4 reference video (WebCodecs). `js/gizmo.js`: orientation cube. `js/main.js`: interface wiring.
+- Camera moves are lists of keyframes: `az` (degrees around the product, 0 = front), `el` (degrees above the aimed point), `d` (distance, 1 = whole product in the frame) and the aimed point, either `ty` (height, 0 to 1) or `t` (`[x, y, z]` inside the product's box, 0 to 1). Moves made by hand use `t`. Everything is relative to the product's size and front, so a move fits any product.
+- Browser storage (`localStorage`): `viewer3d.views` (saved views), `viewer3d.moves` (my moves), `lang` (interface language). Exported files are JSON: `{ "viewer3d": 1, "views": [...] }` and `{ "viewer3d": 1, "moves": [...] }`.
 - `vendor/three`: [three.js](https://threejs.org) 0.170 for display.
 - `vendor/occt`: [occt-import-js](https://github.com/kovacsv/occt-import-js) (OpenCascade compiled to WebAssembly) to read STEP and IGES files, in a Web Worker.
 
