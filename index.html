@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Viewer 3D</title>
+<meta name="description" content="3D viewer in the browser: load a STEP, IGES, GLB, OBJ or STL file, frame it and save an image. Files never leave your computer.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2326292d'/%3E%3Cpath d='M16 6l9 5v10l-9 5-9-5V11z M7 11l9 5 9-5 M16 16v10' fill='none' stroke='%23e8b04a' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
+</head>
+<body>
+<div id="app">
+
+<main id="stage">
+  <div id="frame" hidden></div>
+  <canvas id="gizmo" hidden></canvas>
+  <p id="nav" data-t="nav" hidden></p>
+  <div id="marks"></div>
+  <div id="chip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5 M12 12v9"/></svg><h1 id="name"></h1><button id="load" data-pick></button></div>
+  <a id="credit" href="https://github.com/Bagareal/viewer-3d" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>&copy; 2026 Bagareal</span></a>
+
+  <div id="drop" class="overlay">
+    <div class="card center">
+      <svg class="cube" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l11 6v12l-11 6-11-6V10z M5 10l11 6 11-6 M16 16v12"/></svg>
+      <h2 data-t="dropTitle"></h2>
+      <p class="muted" data-t="dropSub"></p>
+      <button class="primary" data-pick data-t="choose"></button>
+      <p class="muted small" data-t="dropPrivacy"></p>
+    </div>
+  </div>
+
+  <div id="busy" class="overlay" hidden>
+    <div class="card center"><div class="spin"></div><p id="busyText"></p><button id="busyCancel" hidden data-t="bigNo"></button></div>
+  </div>
+
+  <div id="fail" class="overlay" hidden>
+    <div class="card">
+      <h3 data-t="failTitle"></h3>
+      <p id="failText"></p>
+      <div class="row"><button class="primary" data-pick data-t="retry"></button><button id="failClose" data-t="bigNo"></button></div>
+    </div>
+  </div>
+
+  <div id="big" class="overlay" hidden>
+    <div class="card">
+      <h3 data-t="bigTitle"></h3>
+      <p id="bigText"></p>
+      <p class="muted" data-t="bigTip"></p>
+      <div class="row"><button id="bigNo" class="primary" data-t="bigNo"></button><button id="bigGo" data-t="bigGo"></button></div>
+    </div>
+  </div>
+
+  <div id="srv" class="overlay" hidden>
+    <div class="card">
+      <h3 data-t="srvTitle"></h3>
+      <p id="srvText"></p>
+      <p class="muted small" data-t="srvPrivacy"></p>
+      <div id="srvPassRow"><input type="password" id="srvPass" autocomplete="off" data-tp="srvPass"></div>
+      <p id="srvErr" class="small"></p>
+      <div class="row"><button id="srvGo" class="primary" data-t="srvGo"></button><button id="srvBrowser" data-t="bigGo"></button><button id="srvNo" data-t="bigNo"></button></div>
+    </div>
+  </div>
+
+  <div id="veil" hidden><span data-t="dropNow"></span></div>
+</main>
+
+<aside id="side" class="nomodel">
+  <div id="panel">
+    <header>
+      <div id="tabs">
+        <button class="needs" data-tab="model" data-t="tabModel"></button>
+        <button class="needs" data-tab="create" data-t="tabCreate"></button>
+      </div>
+      <button id="helpBtn" data-tab="help" data-title="tabHelp" aria-label="?">?</button>
+      <select id="lang" aria-label="Language"></select>
+    </header>
+    <div id="modes" hidden>
+      <button data-mode="photo" data-t="mdPhoto"></button>
+      <button data-mode="scene" data-t="mdScene"></button>
+      <button data-mode="video" data-t="mdVideo"></button>
+    </div>
+    <div id="scroll">
+
+    <div class="pane" id="p-file">
+      <div class="body">
+        <button class="wide primary" data-pick data-t="load"></button>
+        <input type="file" id="file" accept=".stp,.step,.igs,.iges,.glb,.gltf,.obj,.stl" hidden>
+        <p class="hint" data-t="loadHint"></p>
+      </div>
+    </div>
+
+    <div class="pane" id="p-photo" hidden>
+      <div class="body" id="framing">
+        <div class="field" id="presetsField"><h2 data-t="views"></h2><div class="seg grid" id="presets"></div></div>
+        <div class="field"><h2 data-t="focal"></h2><div class="seg" id="focals"></div><p class="hint" data-t="focalHint"></p></div>
+        <div class="field"><h2 data-t="ratio"></h2><div class="seg" id="ratios"></div><p class="hint" data-t="ratioHint"></p></div>
+        <div class="field"><h2 data-t="saved"></h2>
+          <div id="views"></div>
+          <div class="row nowrap"><input type="text" id="viewName" data-tp="viewName" maxlength="40"><button id="viewSave" data-t="viewSave"></button></div>
+          <div class="row"><button class="link" id="viewExport" data-t="viewExport"></button><button class="link" id="viewImport" data-t="viewImport"></button></div>
+          <p class="hint" id="viewMsg"></p>
+          <input type="file" id="viewFile" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <h3 class="sub" data-t="sExport"></h3>
+      <div class="body">
+        <div class="field">
+          <div class="row nowrap between"><h2 data-t="size"></h2><div class="seg" id="sizes"></div></div>
+          <button id="save" class="wide" data-t="save"></button>
+          <p class="hint" id="savemsg"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" id="p-video" hidden>
+      <h3 class="sub" data-t="sMove"></h3>
+      <div class="body">
+        <div class="field"><div class="seg grid" id="moves"></div><p class="hint" id="moveDesc"></p></div>
+        <div class="field"><h2 data-t="mvMine"></h2>
+          <div id="myMoves"></div>
+          <div class="row"><button class="link" id="mvNew" data-t="mvNew"></button><button class="link" id="mvExport" data-t="viewExport"></button><button class="link" id="mvImport" data-t="viewImport"></button></div>
+          <p class="hint" id="mvMsg"></p>
+          <input type="file" id="mvFile" accept=".json,application/json" hidden>
+        </div>
+        <div class="field"><h2 data-t="moveKeys"></h2><div id="frames"></div>
+          <p class="hint" id="moveInfo"></p><p class="hint" id="moveDetail"></p>
+          <button id="movePlay" class="wide" data-t="movePlay"></button></div>
+        <div class="field" id="editField">
+          <button id="keyUpdate" class="wide primary" data-t="keyUse"></button>
+          <div class="row nowrap"><button id="keyAdd" class="wide" data-t="keyAdd"></button><button id="aimPick" class="pick" data-t="aimPick"></button></div>
+          <button class="link" id="keyDel" data-t="keyDel"></button>
+          <div class="row nowrap" id="saveRow"><input type="text" id="mvName" data-tp="mvName" maxlength="40"><button id="mvSave" data-t="mvSave"></button></div>
+        </div>
+      </div>
+      <h3 class="sub" data-t="sExport"></h3>
+      <div class="body">
+        <div class="field">
+          <div class="row nowrap between"><h2 data-t="videoSize"></h2><div class="seg" id="videoSizes"></div></div>
+          <div class="exports">
+            <button id="expFrames"><b data-t="xFrames"></b><span data-t="xFramesSub"></span></button>
+            <button id="expVideo"><b data-t="xVideo"></b><span data-t="xVideoSub"></span></button>
+            <button id="expEvery" class="primary"><b data-t="xAll"></b><span data-t="xAllSub"></span></button>
+          </div>
+          <p class="hint" id="moveMsg"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" id="p-product" hidden>
+      <h3 class="sub secthead" data-t="sProduct"></h3>
+      <div class="body">
+        <div class="field"><h2 data-t="front"></h2><button id="setFront" class="wide" data-t="frontBtn"></button>
+          <p class="hint" data-t="frontHint"></p>
+          <button class="link" id="orientReset" data-t="orientReset"></button></div>
+        <div class="field"><h2 data-t="turn"></h2><div class="seg" id="turns"><button data-r="x">↻ X</button><button data-r="y">↻ Y</button><button data-r="z">↻ Z</button></div><p class="hint" data-t="turnHint"></p></div>
+        <div class="field"><h2 data-t="drag"></h2><div class="seg" id="axes"></div>
+          <p class="hint" data-t="dragHint"></p>
+          <button class="link" id="rotReset" data-t="reset"></button></div>
+      </div>
+    </div>
+
+    <div class="pane" id="p-parts" hidden>
+      <h3 class="sub secthead"><span data-t="sParts"></span><b class="count" id="partCount"></b></h3>
+      <div class="body">
+        <div class="field">
+          <input type="search" id="partFilter" data-tp="partsFilter">
+          <div id="parts"></div>
+          <div class="row"><button class="link" id="showAll" data-t="showAll"></button><button class="link" id="expand"></button></div>
+          <p class="hint" data-t="partsHint"></p>
+        </div>
+        <div class="field" id="opField"><h2><span data-t="opPart"></span><span class="val" id="opVal">100%</span></h2>
+          <p class="opname" id="opName"></p>
+          <input type="range" id="op" min="0" max="100" value="100">
+          <button class="link" id="opReset" data-t="opReset" hidden></button>
+          <p class="hint" data-t="opHint"></p></div>
+        <div class="field"><h2><span data-t="explode"></span><span class="val" id="expVal">0%</span></h2>
+          <input type="range" id="exp" min="0" max="100" value="0">
+          <div class="seg" id="expModes"></div>
+          <p class="hint" data-t="expHint"></p></div>
+      </div>
+    </div>
+
+    <div class="pane" id="p-look" hidden>
+      <h3 class="sub secthead" data-t="sLook"></h3>
+      <div class="body">
+        <div class="field"><h2 data-t="style"></h2><div class="seg" id="styles"></div><p class="hint" data-t="styleHint"></p></div>
+        <div class="field" id="colorField"><h2 data-t="colors"></h2><div class="seg" id="colors"></div></div>
+        <div class="field" id="bgField"><h2 data-t="bg"></h2><div class="seg" id="bgs"></div>
+          <p class="hint" data-t="bgHint"></p>
+          <label id="floorLabel"><input type="checkbox" id="floor"> <span data-t="floor"></span></label></div>
+      </div>
+    </div>
+
+    <div class="pane" id="p-scene" hidden>
+      <div class="body">
+        <p class="hint" data-t="scIntro"></p>
+        <div class="field"><h2 data-t="scPhoto"></h2>
+          <button id="scLoad" class="wide"></button>
+          <input type="file" id="scFile" accept="image/jpeg,image/png,image/webp,image/avif,image/bmp" hidden>
+          <p class="hint" id="scPhotoInfo"></p></div>
+        <div class="field needphoto"><h2 data-t="scPlane"></h2>
+          <p class="hint" data-t="scPlaneHint"></p>
+          <div class="legend">
+            <div class="key"><kbd data-t="scKeyWheel"></kbd><span data-t="scWheel"></span></div>
+            <div class="key"><kbd data-t="scKeyPan"></kbd><span data-t="scPan"></span></div>
+            <div class="key"><kbd data-t="scKeyDrag"></kbd><span data-t="scDrag"></span></div>
+            <div class="key"><kbd data-t="scKeyRight"></kbd><span data-t="scRight"></span></div>
+          </div>
+          <p class="hint warn" id="scGridBad" data-t="scGridBad" hidden></p>
+          <div class="row between">
+            <label><input type="checkbox" id="scShowGrid" checked> <span data-t="scShowGrid"></span></label>
+            <button class="link" id="scGridReset" data-t="scGridReset"></button>
+          </div></div>
+        <div class="field needphoto"><h2 data-t="scFocal"></h2>
+          <div class="focus" id="scFocal">
+            <div class="row nowrap between"><span data-t="scFocalMm"></span><span class="val"></span></div>
+            <div class="row nowrap"><input type="range" min="12" max="150" step="1"><button class="auto" data-t="focusAuto"></button></div>
+          </div>
+          <p class="hint" data-t="scFocalHint"></p></div>
+      </div>
+      <h3 class="sub" data-t="scProduct"></h3>
+      <div class="body needphoto">
+        <p class="hint" data-t="scProductHint"></p>
+        <div class="focus" id="scRot">
+          <div class="row nowrap between"><span data-t="scRot"></span><span class="val"></span></div>
+          <div class="row nowrap"><input type="range" min="-180" max="180" step="1"><button class="auto" data-t="scFace"></button></div>
+        </div>
+        <div class="focus" id="scSize">
+          <div class="row nowrap between"><span data-t="scSize"></span><span class="val"></span></div>
+          <div class="row nowrap"><input type="range" min="-400" max="400" step="1"><button class="auto">100%</button></div>
+        </div>
+        <div class="focus" id="scOpacity">
+          <div class="row nowrap between"><span data-t="scOpacity"></span><span class="val"></span></div>
+          <div class="row nowrap"><input type="range" min="10" max="100" step="1" value="100"><button class="auto">100%</button></div>
+        </div>
+        <p class="hint" data-t="scOpacityHint"></p>
+        <button class="link" id="scCentre" data-t="scCentre"></button>
+      </div>
+      <h3 class="sub" data-t="sExport"></h3>
+      <div class="body needphoto">
+        <button id="scExport" class="wide primary" data-t="scExport"></button>
+        <p class="hint" data-t="scExportHint"></p>
+        <p class="hint" id="scMsg"></p>
+      </div>
+    </div>
+
+    <div class="pane" id="p-help" hidden><div id="help"></div></div>
+
+    </div>
+  </div>
+
+  <span id="version" title="Viewer 3D">v1</span>
+</aside>
+
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,342 @@
+// The loaded model: materials, parts list, exploded view, orientation and picking.
+import { THREE, AXES, view, holder, floor, sphere, place, invalidate, cam, renderer } from './viewer.js';
+import { t } from './i18n.js';
+
+const $ = id => document.getElementById(id);
+const greyMat = new THREE.MeshStandardMaterial({ color: 0xbdbdbb, roughness: .6, metalness: 0, side: THREE.DoubleSide });
+const hiMat = new THREE.MeshStandardMaterial({ color: 0xe8a030, emissive: 0x5a3000, roughness: .5, side: THREE.DoubleSide });
+
+export let model = null;
+export let picked = null; // last part clicked on the model (detail aimed by the camera moves)
+let rootNode = null, homeQ = null, homeP = null;
+const rows = [], meshRow = new Map(), lit = new Set();
+
+// ---------- materials
+// A part's opacity (Parts panel) is kept on each of its meshes as userData.op (1 = opaque, read by
+// the masks in viewer.js). A see-through mesh gets its own copies of its materials, one per source
+// material, so the other parts sharing that material stay opaque.
+const fades = new WeakMap();
+function faded(m, base) {
+  const op = m.userData.op ?? 1;
+  if (op >= 1) return base;
+  if (Array.isArray(base)) return base.map(b => faded(m, b));
+  let own = fades.get(m); if (!own) fades.set(m, own = new Map());
+  let c = own.get(base); if (!c) own.set(base, c = base.clone());
+  c.transparent = true; c.opacity = base.opacity * op; c.depthWrite = false;
+  return c;
+}
+const matOf = m => faded(m, lit.has(m) ? hiMat : view.colors && m.userData.orig ? m.userData.orig : greyMat);
+export function applyMaterials() { if (model) model.traverse(o => { if (o.isMesh) o.material = matOf(o); }); invalidate(); }
+function highlight(meshes, on) { meshes.forEach(m => { on ? lit.add(m) : lit.delete(m); m.material = matOf(m); }); invalidate(); }
+
+function dispose(obj) {
+  const mats = new Set();
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    [o.material, o.userData.orig].flat().forEach(m => { if (m && m !== greyMat && m !== hiMat) mats.add(m); });
+    fades.get(o)?.forEach(c => mats.add(c));
+  });
+  mats.forEach(m => { Object.values(m).forEach(v => { if (v && v.isTexture) v.dispose(); }); m.dispose(); });
+}
+
+// ---------- placing the model on the floor
+function normalize() {
+  holder.position.set(0, 0, 0); holder.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(holder), c = b.getCenter(new THREE.Vector3());
+  holder.position.set(-c.x, -b.min.y, -c.z); holder.updateMatrixWorld(true);
+  new THREE.Box3().setFromObject(holder).getBoundingSphere(sphere);
+  if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) throw new Error(t('empty'));
+  floor.scale.setScalar(sphere.radius * 1.6);
+}
+const saveHome = () => { homeQ = model.quaternion.clone(); homeP = model.position.clone(); };
+
+export function setModel(obj, tree, groups, name) {
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    o.userData.orig = o.userData.orig === null ? null : o.material;
+  });
+  const old = model;
+  if (old) holder.remove(old);
+  holder.add(obj);
+  try { normalize(); } catch (e) { holder.remove(obj); dispose(obj); if (old) { holder.add(old); normalize(); } throw e; }
+  if (old) dispose(old);
+  model = obj; picked = null; lit.clear(); applyMaterials();
+  buildParts(tree || treeFromObject(obj, groups)); saveHome();
+  orientKey = name || null;
+  const q = orientKey && storedOrientation(orientKey);
+  if (q) orientTo(q);
+  place(view.dir);
+}
+
+// ---------- parts tree  (node: {name, meshes:[Mesh], children:[node]}; a node's own meshes are one part)
+// groups: lists of sibling meshes that form one part (see partGroups in loaders.js).
+function treeFromObject(obj, groups = []) {
+  const own = new Map(groups.map(g => [g[0].parent, g]));
+  const walk = o => {
+    const g = own.get(o), n = { name: o.name || '', meshes: g ? [...g] : o.isMesh ? [o] : [], children: [] };
+    o.children.forEach(c => { if (g && g.includes(c)) return; const k = walk(c); if (k.meshes.length || k.children.length) n.children.push(k); });
+    return n;
+  };
+  const r = walk(obj);
+  while (!r.meshes.length && r.children.length === 1 && !r.children[0].meshes.length) Object.assign(r, r.children[0]);
+  return r;
+}
+const allMeshes = n => n.all ??= [...n.meshes, ...n.children.flatMap(allMeshes)];
+const countParts = n => n.nParts ??= (n.meshes.length ? 1 : 0) + n.children.reduce((s, c) => s + countParts(c), 0);
+
+function refreshChecks() {
+  rows.forEach(({ node, cb }) => { const ms = allMeshes(node), v = ms.filter(m => m.visible).length; cb.checked = v > 0; cb.indeterminate = v > 0 && v < ms.length; });
+  invalidate();
+}
+function buildParts(root) {
+  rootNode = root; rows.length = 0; meshRow.clear(); expSet.clear(); initExplode();
+  const box = $('parts'); box.innerHTML = ''; $('partFilter').value = '';
+  const mkNode = (node, depth) => {
+    const el = document.createElement('div'), kids = node.children.length > 0;
+    el.className = 'node' + (kids ? '' : ' leaf') + (depth > 0 ? ' closed' : '');
+    const line = document.createElement('div'); line.className = 'line';
+    const tw = document.createElement('span'); tw.className = 'tw';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true;
+    const nm = document.createElement('span'); nm.className = 'nm';
+    const name = node.name || node.meshes[0]?.name || '—';
+    nm.textContent = name + (kids ? ` (${countParts(node)})` : ''); nm.title = nm.textContent;
+    const so = document.createElement('button'); so.className = 'solo'; so.textContent = t('solo');
+    const ex = document.createElement('button'); ex.className = 'ex'; ex.textContent = '✦'; ex.title = t('exMark');
+    const op = document.createElement('span'); op.className = 'op'; op.hidden = true;
+    line.append(tw, cb, nm, op, so, ex); el.append(line);
+    if (kids) {
+      const k = document.createElement('div'); k.className = 'kids';
+      node.children.forEach(c => k.append(mkNode(c, depth + 1))); el.append(k);
+      tw.onclick = nm.ondblclick = () => el.classList.toggle('closed');
+    }
+    cb.onchange = () => { allMeshes(node).forEach(m => m.visible = cb.checked); refreshChecks(); };
+    so.onclick = () => { const keep = new Set(allMeshes(node)); allMeshes(rootNode).forEach(m => m.visible = keep.has(m)); refreshChecks(); };
+    line.onmouseenter = () => highlight(allMeshes(node), true);
+    line.onmouseleave = () => highlight(allMeshes(node), false);
+    ex.onclick = () => { const ms = allMeshes(node), on = !ms.every(m => expSet.has(m)); ms.forEach(m => on ? expSet.add(m) : expSet.delete(m)); refreshEx(); applyExplode(); };
+    nm.onclick = () => selectRow(row);
+    const row = { node, el, line, cb, ex, so, op, name: name.toLowerCase() }; rows.push(row);
+    node.meshes.forEach(m => meshRow.set(m, row));
+    return el;
+  };
+  let top = root.meshes.length ? [root] : root.children;
+  if (top.length === 1 && !top[0].meshes.length) top = top[0].children;
+  top.forEach(n => box.append(mkNode(n, 0)));
+  $('partCount').textContent = countParts(root);
+  selRow = null; drawOpacity();
+}
+
+// ---------- opacity of a part: the part chosen in the list (click its name) or on the model
+let selRow = null;
+const opOf = ms => ms.length ? Math.min(...ms.map(m => m.userData.op ?? 1)) : 1;
+function selectRow(row) {
+  selRow = row;
+  document.querySelectorAll('#parts .line.picked').forEach(l => l.classList.toggle('picked', l === row.line));
+  row.line.classList.add('picked'); drawOpacity();
+}
+function drawOpacity() {
+  rows.forEach(r => { const v = opOf(allMeshes(r.node)); r.op.hidden = v >= 1; r.op.textContent = Math.round(v * 100) + '%'; });
+  const v = selRow ? opOf(allMeshes(selRow.node)) : 1;
+  $('opField').classList.toggle('off', !selRow);
+  $('op').value = Math.round(v * 100); $('opVal').textContent = Math.round(v * 100) + '%';
+  $('opName').textContent = selRow ? selRow.node.name || selRow.node.meshes[0]?.name || '—' : t('opNone');
+  $('opReset').hidden = !rows.some(r => !r.op.hidden);
+}
+export function setPartOpacity(v) {
+  if (!selRow) return;
+  allMeshes(selRow.node).forEach(m => { m.userData.op = v; });
+  applyMaterials(); drawOpacity();
+}
+export function resetOpacity() {
+  if (!model) return;
+  model.traverse(o => { if (o.isMesh) delete o.userData.op; });
+  applyMaterials(); drawOpacity();
+}
+export function relabelParts() { rows.forEach(r => { r.so.textContent = t('solo'); r.ex.title = t('exMark'); }); drawOpacity(); }
+export function showAll() { if (rootNode) { allMeshes(rootNode).forEach(m => m.visible = true); refreshChecks(); } }
+export function expandAll(open) { document.querySelectorAll('#parts .node:not(.leaf)').forEach(n => n.classList.toggle('closed', !open)); }
+export function filterParts(q) {
+  q = q.trim().toLowerCase();
+  const visit = el => {
+    let hit = false;
+    el.querySelectorAll(':scope>.kids>.node').forEach(k => { if (visit(k)) hit = true; });
+    const row = rows.find(r => r.el === el), own = !q || row.name.includes(q);
+    el.hidden = !(own || hit);
+    if (q && hit) el.classList.remove('closed');
+    return own || hit;
+  };
+  document.querySelectorAll('#parts>.node').forEach(visit);
+}
+
+// ---------- exploded view
+// Like a technical exploded drawing: the largest part (the body) stays; every other part leaves
+// along one of the product's own six directions (up, down, front, back, left, right): the side it
+// sticks out of the body the most, so a part below goes down and a handle on top goes up. Parts
+// leaving on the same side keep their order, the outer ones going further, so none goes through
+// another on its way. Whole parts move: all meshes of a part (one per colour) get the same offset.
+// The plan is made once per model, in the product's axes, so it holds whatever the orientation.
+const expSet = new Set(); let expMode = 'all', expBase = new Map(), expUnits = [], expPlan = null;
+function initExplode() {
+  expBase = new Map(); expUnits = []; expPlan = null;
+  if (!model) return;
+  const seen = new Set();
+  const add = ms => {
+    const byParent = new Map();
+    ms.forEach(m => { if (seen.has(m)) return; seen.add(m); const l = byParent.get(m.parent); l ? l.push(m) : byParent.set(m.parent, [m]); });
+    byParent.forEach(l => expUnits.push(l));
+  };
+  const visit = n => { if (n.meshes.length) add(n.meshes); n.children.forEach(visit); };
+  if (rootNode) visit(rootNode);
+  model.traverse(o => { if (o.isMesh) { expBase.set(o, o.position.clone()); if (!seen.has(o)) add([o]); } });
+  $('exp').value = 0; $('expVal').textContent = '0%';
+}
+function refreshEx() { rows.forEach(({ node, ex }) => { const ms = allMeshes(node); ex.classList.toggle('on', ms.length > 0 && ms.every(m => expSet.has(m))); }); }
+const _mb = new THREE.Box3(), _m4 = new THREE.Matrix4(), _o = new THREE.Vector3(), _w = new THREE.Vector3();
+const AXES3 = ['x', 'y', 'z'];
+// Offset of each unit at 100 %, in the product's axes (parts at rest).
+function planExplode() {
+  const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const boxes = expUnits.map(ms => {
+    const b = new THREE.Box3();
+    ms.forEach(m => { _m4.multiplyMatrices(inv, m.matrixWorld); b.union(_mb.copy(m.geometry.boundingBox).applyMatrix4(_m4)); });
+    return b;
+  });
+  const all = new THREE.Box3(); boxes.forEach(b => all.union(b));
+  const diag = all.getSize(new THREE.Vector3()).length(), gap = diag * .07, tol = diag * .002;
+  const vol = b => { const v = b.getSize(new THREE.Vector3()); return v.x * v.y * v.z; };
+  let body = 0; boxes.forEach((b, i) => { if (vol(b) > vol(boxes[body])) body = i; });
+  const B = boxes[body];
+  // Do two boxes face each other along axis k (they overlap on the two other axes)?
+  const facing = (a, c, k) => AXES3.every(q => q === k || Math.min(a.max[q], c.max[q]) - Math.max(a.min[q], c.min[q]) > tol);
+  // Interval along the outward direction (k, s): lo = inner side, hi = outer side.
+  const span = (b, k, s) => s > 0 ? [b.min[k], b.max[k]] : [-b.max[k], -b.min[k]];
+  const groups = new Map();
+  boxes.forEach((b, i) => {
+    if (i === body || b.isEmpty()) return;
+    let best = null;
+    for (const k of AXES3) for (const s of [1, -1]) {
+      const out = s > 0 ? b.max[k] - B.max[k] : B.min[k] - b.min[k]; // how far it sticks out of the body
+      if (!best || out > best.out + tol) best = { k, s, out };
+    }
+    const key = best.k + best.s;
+    groups.has(key) ? groups.get(key).push(i) : groups.set(key, [i]);
+  });
+  const plan = boxes.map(() => new THREE.Vector3());
+  groups.forEach((list, key) => {
+    const k = key[0], s = key.endsWith('-1') ? -1 : 1, bodyHi = span(B, k, s)[1];
+    list.sort((i, j) => span(boxes[i], k, s)[0] - span(boxes[j], k, s)[0]); // inner first
+    const placed = [];
+    for (const i of list) {
+      const [lo, hi] = span(boxes[i], k, s);
+      let need = lo + gap;
+      if (facing(boxes[i], B, k)) need = Math.max(need, bodyHi + gap);
+      for (const p of placed) if (facing(boxes[i], boxes[p.i], k)) need = Math.max(need, p.hi + gap);
+      const move = need - lo;
+      placed.push({ i, hi: hi + move });
+      plan[i][k] = s * move;
+    }
+  });
+  return plan;
+}
+export function applyExplode() {
+  if (!model) return;
+  const f = $('exp').value / 100; $('expVal').textContent = $('exp').value + '%';
+  expBase.forEach((p, m) => m.position.copy(p)); model.updateMatrixWorld(true); invalidate();
+  if (f === 0) return;
+  expPlan ??= planExplode();
+  const origin = model.localToWorld(_o.set(0, 0, 0)).clone();
+  expUnits.forEach((ms, i) => {
+    if (expMode === 'sel' && !ms.some(m => expSet.has(m))) return;
+    const off = model.localToWorld(_w.copy(expPlan[i]).multiplyScalar(f)).sub(origin); // product axes -> scene
+    if (off.lengthSq() === 0) return;
+    ms.forEach(m => { const target = m.parent.localToWorld(expBase.get(m).clone()).add(off); m.position.copy(m.parent.worldToLocal(target)); });
+  });
+  model.updateMatrixWorld(true);
+}
+export function setExplodeMode(m) { expMode = m; $('parts').classList.toggle('sel', m === 'sel'); applyExplode(); }
+
+// ---------- orientation
+// How the product was straightened is remembered per file name, in this browser only,
+// so the same file opens upright next time.
+const OKEY = 'viewer3d.orient.';
+let orientKey = null;
+function storedOrientation(name) {
+  try {
+    const a = JSON.parse(localStorage.getItem(OKEY + name));
+    return Array.isArray(a) && a.length === 4 && a.every(Number.isFinite) ? new THREE.Quaternion().fromArray(a) : null;
+  } catch (e) { return null; }
+}
+// Puts the model in orientation q (from its straightened position, any free turn is dropped),
+// back on the floor, and remembers it.
+function orientTo(q) {
+  expBase.forEach((p, m) => m.position.copy(p));
+  model.quaternion.copy(homeQ); model.position.copy(homeP);
+  model.position.applyQuaternion(q.clone().multiply(homeQ.clone().invert())); model.quaternion.copy(q);
+  normalize(); saveHome();
+  if (orientKey) try { localStorage.setItem(OKEY + orientKey, JSON.stringify(model.quaternion.toArray())); } catch (e) {}
+}
+// Quarter turn around a world axis; the model is then put back on the floor and the view reframed.
+export function turn90(ax) {
+  if (!model) return;
+  orientTo(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), Math.PI / 2).multiply(homeQ));
+  place(view.dir); applyExplode();
+}
+// "This is the front": what the camera shows now becomes the front, and the top of the picture the top.
+// Both are rounded to the product's own axes, so it never ends up tilted.
+export function setFrontFromView() {
+  if (!model) return;
+  const toModel = model.quaternion.clone().invert();
+  const look = cam.getWorldDirection(new THREE.Vector3()).negate().applyQuaternion(toModel); // product -> camera
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion).applyQuaternion(toModel);
+  const snap = (v, not) => {
+    const k = ['x', 'y', 'z'].filter(a => a !== not).reduce((b, c) => Math.abs(v[c]) > Math.abs(v[b]) ? c : b);
+    const r = new THREE.Vector3(); r[k] = Math.sign(v[k]) || 1; return [r, k];
+  };
+  const [f, fk] = snap(look), [u] = snap(up, fk), w = new THREE.Vector3().crossVectors(u, f);
+  // rotation taking the product's axes w, u, f to the scene's right, up and front
+  orientTo(new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(w, u, f).transpose()));
+  place([0, .12, 1]); applyExplode();
+}
+// Back to the orientation of the file, and forget the one remembered.
+export function resetOrientation() {
+  if (!model) return;
+  if (orientKey) try { localStorage.removeItem(OKEY + orientKey); } catch (e) {}
+  const key = orientKey; orientKey = null; orientTo(new THREE.Quaternion()); orientKey = key;
+  place(view.dir); applyExplode();
+}
+// Free turn around one axis through the middle of the product (used while dragging).
+export function spin(ax, angle) {
+  if (!model) return;
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(...AXES[ax]), angle);
+  const C = holder.worldToLocal(sphere.center.clone());
+  model.position.sub(C).applyQuaternion(q).add(C); model.quaternion.premultiply(q); invalidate();
+}
+// Turn applied on top of the product's straightened position (shown by the orientation cube).
+const _sq = new THREE.Quaternion(), _hq = new THREE.Quaternion();
+export const spinQuat = () => model && homeQ ? _sq.copy(model.quaternion).multiply(_hq.copy(homeQ).invert()) : _sq.identity();
+export function resetSpin() { if (model) { model.quaternion.copy(homeQ); model.position.copy(homeP); invalidate(); } }
+
+// ---------- picking: click a part on the model to find it in the list
+// Clicks go through parts made see-through below 50%, to reach what is inside them.
+const ray = new THREE.Raycaster(); let flash = 0;
+function hitAt(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2((clientX - r.left) / r.width * 2 - 1, -(clientY - r.top) / r.height * 2 + 1), cam);
+  return ray.intersectObject(model, true).find(h => h.object.isMesh && h.object.visible && (h.object.userData.op ?? 1) >= .5);
+}
+// The exact point of the surface under the mouse (aimed point of the camera moves), or null.
+export const pointAt = (clientX, clientY) => model ? hitAt(clientX, clientY)?.point || null : null;
+export function pick(clientX, clientY) {
+  if (!model) return false;
+  const hit = hitAt(clientX, clientY), row = hit && meshRow.get(hit.object);
+  if (!row) return false;
+  picked = hit.object; selectRow(row);
+  for (let p = row.el.parentElement; p && p.id !== 'parts'; p = p.parentElement) { p.classList.remove('closed'); p.hidden = false; }
+  row.el.hidden = false; row.line.scrollIntoView({ block: 'nearest' });
+  const ms = [...lit]; highlight(ms, false); clearTimeout(flash);
+  const part = row.node.meshes.includes(hit.object) ? row.node.meshes : [hit.object];
+  highlight(part, true); flash = setTimeout(() => highlight(part, false), 900);
+  return true;
+}

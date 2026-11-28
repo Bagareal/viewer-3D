@@ -1,0 +1,4 @@
+fastapi>=0.110
+uvicorn>=0.29
+# The converter, at a fixed release (needs git on the machine). To update it, change the version here and run the install command again.
+step2glb @ git+https://github.com/Bagareal/step2glb.git@v1.4.0

@@ -1,0 +1,27 @@
+# systemd unit for the conversion server. Copy to /etc/systemd/system/step2glb-server.service.
+# The paths below match the install steps in the README (section "Installing the conversion server").
+# If you install somewhere else, change User, WorkingDirectory and ExecStart.
+
+[Unit]
+Description=STEP to GLB conversion server (Viewer 3D)
+After=network.target
+
+[Service]
+# A dedicated user with no login, created in the install steps.
+User=step2glb
+# The step2glb-server folder of the viewer (the folder that contains "server/").
+WorkingDirectory=/opt/step2glb-server/app/step2glb-server
+# Settings (passphrase, address, port, limits). Edit it with: sudo nano /etc/step2glb-server.env
+EnvironmentFile=/etc/step2glb-server.env
+Environment=PYTHONUNBUFFERED=1
+# The Python environment created in the install steps.
+ExecStart=/opt/step2glb-server/venv/bin/python -m server
+# Creates /var/lib/step2glb-server for the uploads (the default DATA_DIR), owned by User.
+StateDirectory=step2glb-server
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
